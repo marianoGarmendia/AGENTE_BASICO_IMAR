@@ -1,53 +1,13 @@
-### Agente aviva stgo instagram
+## AGENTE IMAR BASICO - PRIMER ITERACION
+
+### AGENTE CONECTADO A WHATSAPP CON FUNCIONALIDADES
+
+- Asesoramiento informativo acerca deL INSTITUTO IMAR
+- Responde sobre obras sociales, si trabaja o no y que hacer
+- Tiene informacion sobre listado de médicos y la franja horaria en que atienden
+- Si quiere una consulta recopila datos de toda la solicitud que necesita 
+> Carga en zoho como trato
 
 
-
-Stevie AI - Automatizaciones
-
-To install dependencies:
-
-```bash
-bun install
-```
-
-To run:
-
-```bash
-bun run index.ts
-```
-
-This project was created using `bun init` in bun v1.1.30. [Bun](https://bun.sh) is a fast all-in-one JavaScript runtime.
-
-
-LANGGRAPH STUDIO LOCALMENTE
-
-Para ejecutar un servidor de manera local debi instalar:
-
-npx @langchain/langgraph-cli ó npm install -g @langchain/langgraph-cli
-> Algunos de los dos , o los dos
-
-Configurar el langgraph.json
-
-```
-{
-    "node_version": "20",
-    "dockerfile_lines": [],
-    "dependencies": [
-        "."
-    ],
-    "graphs": {
-        "agent": "./graph.ts:workflow"
-    },
-    "env": "./.env"
-}
-
-```
-El graph a ejecutar debe estar bien en la ruta, debe ser exportado y no debe tener checkpointer
-
-
-Luego los comandos:
-
-langgraphjs dev
-
-
-
+> Para testear el agente
+https://agentchat.vercel.app/

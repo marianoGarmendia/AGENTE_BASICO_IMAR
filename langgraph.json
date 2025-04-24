@@ -5,7 +5,7 @@
         "."
     ],
     "graphs": {
-        "agent": "./graph.ts:workflow"
+        "agent": "./src/graph.ts:workflow"
     },
     "env": "./.env"
 }

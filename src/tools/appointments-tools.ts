@@ -1,6 +1,6 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
-import { obras_sociales } from "../utils/obras-sociales";
+import { obras_sociales , obras_sociales_con_convenio } from "../utils/obras-sociales";
 
 type OBRA_SOCIAL = (typeof obras_sociales)[number];
 

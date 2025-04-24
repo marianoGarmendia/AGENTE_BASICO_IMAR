@@ -4,8 +4,8 @@ import * as uuid from "uuid";
 
 import { workflow } from "./graph";
 import { HumanMessage } from "@langchain/core/messages";
-import { sendMessage } from "./sendMessage";
-import { respondMessage } from "./send-wsp-messagebird";
+import { sendMessage } from "./utils/sendMessageIG";
+
 
 const VERIFY_TOKEN = process.env.VERIFY_TOKEN;
 const app = express();
@@ -149,23 +149,23 @@ app.post("/webhook", async (req, res): Promise<any> => {
 });
 
 // MessageBird
-app.post("/whatsapp", async (req, res) => {
-  console.log("Received whatsapp request");
-  console.dir(req.body, { depth: null });
-  const conversationId = req.body.payload.id;
-  const participantId = req.body.payload.featuredParticipants[0].id;
-  const destinatarioId = req.body.payload.lastMessage.sender.id;
-  console.log(conversationId, destinatarioId, participantId);
+// app.post("/whatsapp", async (req, res) => {
+//   console.log("Received whatsapp request");
+//   console.dir(req.body, { depth: null });
+//   const conversationId = req.body.payload.id;
+//   const participantId = req.body.payload.featuredParticipants[0].id;
+//   const destinatarioId = req.body.payload.lastMessage.sender.id;
+//   console.log(conversationId, destinatarioId, participantId);
 
-  const data = await respondMessage({
-    conversationId,
-    destinatarioId,
-    participantId,
-  });
-  console.log(data);
+//   const data = await respondMessage({
+//     conversationId,
+//     destinatarioId,
+//     participantId,
+//   });
+//   console.log(data);
 
-  res.json({ message: "Mensaje recibido" });
-});
+//   res.json({ message: "Mensaje recibido" });
+// });
 
 // Twilio
 app.post("/twilio", async (req, res) => {

@@ -3,10 +3,9 @@
   "module": "index.ts",
   "type": "module",
   "scripts": {
-    "start": "bun index.ts"
+    "start": ""
   },
   "devDependencies": {
-    "@types/bun": "latest",
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0"
   },
@@ -14,14 +13,16 @@
     "typescript": "^5.0.0"
   },
   "dependencies": {
-    "@langchain/community": "^0.3.34",
-    "@langchain/core": "^0.3.42",
-    "@langchain/langgraph": "^0.2.53",
-    "@langchain/ollama": "^0.2.0",
-    "@langchain/openai": "^0.2.8",
-    "cors": "^2.8.5",
-    "express": "^4.21.1",
-    "resend": "^4.1.2",
-    "uuid": "^10.0.0"
+    "@langchain/community": "0.3.34",
+    "@langchain/core": "0.3.42",
+    "@langchain/langgraph": "0.2.53",
+    "@langchain/ollama": "0.2.0",
+    "@langchain/openai": "0.2.8",
+    "@langchain/tavily": "^0.1.1",
+    "cors": "2.8.5",
+    "dotenv": "^16.5.0",
+    "express": "^4.21.2",
+    "resend": "4.1.2",
+    "uuid": "10.0.0"
   }
 }
