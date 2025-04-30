@@ -18,8 +18,8 @@ import {
 } from "@langchain/langgraph";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { InfoPaciente } from "./types/types_pacients";
-import {getInfoEspcialistSchedule} from "./tools/info_espcialist_schedule";
-import {retrieverToolInfoEstadiaPaciente} from "./tools/info_estadia_paciente";
+import { getInfoEspcialistSchedule } from "./tools/info_espcialist_schedule";
+import { retrieverToolInfoEstadiaPaciente } from "./tools/info_estadia_paciente";
 import { get_info_by_trato } from "./tools/get_info_by_trato";
 import { obras_sociales_tool } from "./tools/obras_sociales";
 import dotenv from "dotenv";
@@ -31,18 +31,27 @@ import { sendMessage } from "./utils/sendMessageIG";
 // dotenv.config();
 const tavilySearch = new TavilySearch({
   tavilyApiKey: process.env.TAVILY_API_KEY,
-  includeDomains:["http://www.institutoimar.com.ar/","http://www.institutoimar.com.ar/especialidades/listado-especialidades","http://www.institutoimar.com.ar/ambulatorio/sesiones","http://www.institutoimar.com.ar/internacion/hospital-internacion","http://www.institutoimar.com.ar/institucional/bienvenidos"],
+  includeDomains: [
+    "http://www.institutoimar.com.ar/",
+    "http://www.institutoimar.com.ar/especialidades/listado-especialidades",
+    "http://www.institutoimar.com.ar/ambulatorio/sesiones",
+    "http://www.institutoimar.com.ar/internacion/hospital-internacion",
+    "http://www.institutoimar.com.ar/institucional/bienvenidos",
+  ],
   maxResults: 5,
-  searchDepth: "advanced"
-}) ;
-
+  searchDepth: "advanced",
+});
 
 // TODO:  Agregar la herramienta de consulta sobre obras sociales con las cuales trabaja IMAR
-const tools = [getInfoEspcialistSchedule, tavilySearch, retrieverToolInfoEstadiaPaciente, get_info_by_trato, obras_sociales_tool];
+const tools = [
+  getInfoEspcialistSchedule,
+  tavilySearch,
+  retrieverToolInfoEstadiaPaciente,
+  get_info_by_trato,
+  obras_sociales_tool,
+];
 
 const stateAnnotation = MessagesAnnotation;
-
-
 
 const subgraphAnnotation = Annotation.Root({
   ...stateAnnotation.spec,
@@ -104,6 +113,7 @@ async function callModel(state: typeof subgraphAnnotation.State) {
       * Si la tiene y no está por convenio va a presupuesto para autorizar por obra social.
       
       - Si la consulta es por internación:
+      - Se le pregunta si es ára el ingreso de un paciente o para un paciente internado.
       - Vas a averiguar con la herramienta "verificar_obras_sociales" si IMAR tiene convenio
       - Responde con lo que te devuelva la herramienta "verificar_obras_sociales" y avanza con la consulta.
       - Si tiene o no tiene convenio se le responde en base al mensaje de herramienta "verificar_obras_sociales"
@@ -123,6 +133,9 @@ async function callModel(state: typeof subgraphAnnotation.State) {
 
     Ambulatorio: Actualmente no trabajamos con...... En este caso tendríamos que confeccionar un presupuesto ajustado a sus requerimientos, para presentarlo en su Obra Social. Para ello necesitamos que nos envíe la orden médica con la indicación del tratamiento/ sesiones y cualquier información adicional.  En caso de que no tenga una indicación médica le podemos brindar un turno con equipo médico para que le armen un plan de tratamiento a su medida.
 
+
+   
+
     `
   );
 
@@ -134,6 +147,7 @@ async function callModel(state: typeof subgraphAnnotation.State) {
 
 function checkToolCall(state: typeof subgraphAnnotation.State) {
   const { messages } = state;
+
   console.log("--- checkToolCall ---");
 
   const lastMessage = messages[messages.length - 1] as AIMessage;
@@ -152,14 +166,13 @@ graph
   .addNode("agent", callModel)
   .addNode("tools", toolNode)
   .addEdge(START, "agent")
-  .addConditionalEdges("agent",checkToolCall)
-  .addEdge("tools", "agent")
+  .addConditionalEdges("agent", toolNode)
+  .addEdge("tools", "agent");
 
 const checkpointer = new MemorySaver();
 
 // Implementacion agente interfazp personalizada
 export const workflow = graph.compile({ checkpointer });
-
 
 // Implementacion langgraph studio sin checkpointer
 // export const workflow = graph.compile();

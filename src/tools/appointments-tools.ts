@@ -16,11 +16,8 @@ const request_appointment_especialist = tool(
       horario: z.string().describe("Franja horaria del turno"),
       consulta: z.string().describe("Consulta del paciente"),
       obra_social: z
-        .string()
-        .transform((val) => val.toUpperCase())
-        .refine((val: any) => obras_sociales.includes(val), {
-          message: "Obra social inválida",
-        }),
+        .string().describe("Nombre de la obra social")
+       
     }),
   }
 );

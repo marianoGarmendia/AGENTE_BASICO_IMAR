@@ -12,6 +12,9 @@
 > Para testear el agente
 https://agentchat.vercel.app/
 
+url de documentacion de api zoho:
+https://www.zoho.com/crm/developer/docs/api/v2/get-records.html 
+
 
 TODO:
 
