@@ -5,7 +5,7 @@ import { parsePhoneNumber } from "./parser-phone-number";
 import { workflow } from "./graph";
 import { HumanMessage } from "@langchain/core/messages";
 import { sendMessage } from "./utils/sendMessageIG";
-import { responseMessage } from "./response-message";
+import { sendMessageWsp } from "./send_msg_wsp";
 import { messageTemplateGeneric } from "./utils/wsp_templates";
 
 const VERIFY_TOKEN = process.env.VERIFY_TOKEN || "";
@@ -126,17 +126,17 @@ app.post("/webhook", async (req, res): Promise<any> => {
     const cel_number = parsePhoneNumber(firstMessage.from);
 
     if (firstMessage.type !== "text") {
-      await responseMessage(
-        business_phone_number_id,
-        cel_number,
+      await sendMessageWsp(
+       { business_phone_number_id,
+      
         WEBHOOK_VERIFY_TOKEN,
-        {
+       template: {
           ...messageTemplateGeneric,
           to: cel_number,
           text: {
             body: "Solo recibimos mensajes de texto, por favor vuelve a intentarlo",
           },
-        }
+        }}
       );
       console.log("Message sent successfully, No es un mensaje de texto:", res);
 
@@ -162,18 +162,18 @@ app.post("/webhook", async (req, res): Promise<any> => {
         responseGraph.messages[responseGraph.messages.length - 1].content
       );
 
-      const res2 = await responseMessage(
-        business_phone_number_id,
-        cel_number,
+      const res2 = await sendMessageWsp(
+       { business_phone_number_id,
+  
         WEBHOOK_VERIFY_TOKEN,
-        {
+        template: {
           ...messageTemplateGeneric,
           to: cel_number,
           text: {
             body: responseGraph.messages[responseGraph.messages.length - 1]
               .content,
           },
-        }
+        }}
       );
       console.log("respuesta de agente");
       console.log("Message sent successfully:", res2);
