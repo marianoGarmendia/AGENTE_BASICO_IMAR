@@ -18,4 +18,10 @@ https://www.zoho.com/crm/developer/docs/api/v2/get-records.html
 
 TODO:
 
-CUANDO MANDE HISOTRIA CLINICA U ORDEN PROCESARLA EN EL SERVER Y ENVIARLA A UN MAIL DE RECEPCION - CONFIGURAR RESPUESTA
+- CUANDO MANDE HISOTRIA CLINICA U ORDEN PROCESARLA EN EL SERVER Y ENVIARLA A UN MAIL DE RECEPCION - CONFIGURAR RESPUESTA
+
+05-05
+- configurar función que envíe whatsapp
+- Cargar como lead, el sistema de zoho de manera predeterminada cuando intentmaos insertar un registro mnuevo analiza algún campo (ver  "Campos de comprobación de duplicados definidos por el sistema" ) 
+Configurar aqui : https://help.zoho.com/portal/en/kb/crm/customize-crm-account/customizing-fields/articles/use-custom-fields#Mark_a_Field_as_Unique
+Seleccionar un campo como unico apra que se duplique, como recomendación se utiliza el email

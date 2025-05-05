@@ -4,7 +4,10 @@
   "type": "module",
   "scripts": {
     "start": "",
-    "dev": "npx tsx src/index.ts"
+    "dev": "npx tsx src/index.ts",
+    "auth": "npx tsx src/auth_zoho.ts",
+    "refresh": "npx tsx src/refresh_token_zoho.ts",
+    "getLeads": "npx tsx src/api_zoho/get_leads.ts"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",

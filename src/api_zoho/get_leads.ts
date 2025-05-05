@@ -48,7 +48,7 @@ export async function getLeads():Promise<any> {
 }
 
 // Devuelve un objeto con la prop data que es un array de leads objetos
-// await  getLeads()
+await  getLeads()
 
 
 
@@ -61,19 +61,19 @@ export function procesarLead(lead: Record<string, any>) {
     const camposACompletar = [
       "Nombre_y_Apellido_paciente", 
       "Obra_social",
-      "Tipo_de_tratamiento", // Ambulatorio o Internación
-      "Tipo_de_posible_cliente",
-      "Cargo",
+      "Tipo_de_tratamiento", // [Tto. ambulatorio , Internación]
+      "Tipo_de_posible_cliente", // Tipo de posible cliente puede ser ["Paciente", "Familiar responsable","Contacto institucional"]
+   
       "Email",
       "City",
-      "Lead_Status", //Estado de posible contacto: No contactado
+      "Lead_Status", //Estado de posible contacto: No contactado [Contactado , No contactado]
       "State",
       "Description",
       "Street",
       "Phone",
-      "Number_Of_Chats",
+     
       "Apellido_paciente",
-      "ltimo_contacto",
+      
     ];
   
     const camposFaltantes = camposACompletar.filter(
@@ -86,6 +86,9 @@ export function procesarLead(lead: Record<string, any>) {
       apellido: lead.Last_Name || "",
       telefono: lead.Mobile || lead.Phone || "",
       email: lead.Email || "",
+      tipo_de_tratamiento: lead.Tipo_de_tratamiento || "", // [Tto. ambulatorio , Internación]
+      obra_social: lead.Obra_social || "",
+      Tipo_de_posible_cliente: lead.Tipo_de_posible_cliente || "", // ["Paciente", "Familiar responsable","Contacto institucional"]
     };
   
     return { camposFaltantes, contacto };

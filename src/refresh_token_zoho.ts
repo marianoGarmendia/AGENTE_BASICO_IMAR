@@ -1,5 +1,6 @@
 
-import axios from 'axios';
+import dotenv from 'dotenv';
+dotenv.config();
 const CLIENT_ID = process.env.ZOHO_CLIENT_ID || "";
 const REDIRECT_URI = process.env.AUTHORIZED_URI_REDIRECT || "";
 const CLIENT_SECRET = process.env.ZOHO_CLIENT_SECRET || "";
@@ -49,26 +50,43 @@ const scope = 'ZohoCRM.modules.ALL';
   // })()
 
 
-  async function refreshAccessToken() {
-    const params = new URLSearchParams();
-    params.append('refresh_token', REFRESH_TOKEN);
-    params.append('client_id', CLIENT_ID);
-    params.append('client_secret', CLIENT_SECRET);
-    params.append('grant_type', 'refresh_token');
-  
-    try {
-      const response = await axios.post('https://accounts.zoho.com/oauth/v2/token', params);
-      console.log('Nuevo access_token:', response.data.access_token);
-    } catch (error:any) {
-      console.error('Error al renovar el token:', error.response.data);
+  import fetch from 'node-fetch';
+
+async function refreshZohoToken() {
+  const url = 'https://accounts.zoho.com/oauth/v2/token';
+
+  const params = new URLSearchParams({
+    client_id: CLIENT_ID,
+    client_secret: CLIENT_SECRET,
+    grant_type: 'refresh_token',
+    refresh_token: REFRESH_TOKEN
+  });
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: params.toString(),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Error ${response.status}: ${await response.text()}`);
     }
+
+    const data:any = await response.json();
+    console.log('Access Token:', data?.access_token);
+    return data;
+  } catch (error) {
+    console.error('Failed to refresh Zoho token:', error);
   }
-  
-  
-  (async () => {
-    await refreshAccessToken();
-    // await refreshAccessToken("1000.dccf9dc0e02bb6c0045933e399762c33.928496e6b36117f1c098e09e841f44c1")
+}
+
+(async () => {
+    await refreshZohoToken()
 
   })()
+
 
     

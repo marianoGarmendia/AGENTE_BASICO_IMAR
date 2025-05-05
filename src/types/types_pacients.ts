@@ -13,5 +13,10 @@ export const info_paciente_schema = z.object({
     consulta: z.string().describe("Consulta del paciente, una descripcion breve sobre el motivo de la consulta"),
 })
 
+
+
+
+
+
 export type InfoPaciente = z.infer<typeof info_paciente_schema>;
 

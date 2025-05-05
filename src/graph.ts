@@ -24,7 +24,7 @@ import { get_info_by_trato } from "./tools/get_info_by_trato";
 import { obras_sociales_tool } from "./tools/obras_sociales";
 import dotenv from "dotenv";
 dotenv.config();
-import { sendMessage } from "./utils/sendMessageIG";
+
 
 // process.env.LANGCHAIN_CALLBACKS_BACKGROUND = "true";
 // import * as dotenv from "dotenv";
