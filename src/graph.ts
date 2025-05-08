@@ -3,14 +3,15 @@ import {
   BaseMessage,
   HumanMessage,
   SystemMessage,
+  ToolMessage,
   type BaseMessageLike,
 } from "@langchain/core/messages";
-
+import { z } from "zod";
 import { llm } from "./llm/llm";
-
+import {ChatOpenAI} from "@langchain/openai";
 import { TavilySearch } from "@langchain/tavily";
-
-import { START, StateGraph, interrupt, Command } from "@langchain/langgraph";
+import { formatMessages } from "./utils/format-messages";
+import { START, StateGraph, interrupt, Command, LangGraphRunnableConfig } from "@langchain/langgraph";
 import {
   MemorySaver,
   Annotation,
@@ -22,10 +23,13 @@ import { getInfoEspcialistSchedule } from "./tools/info_espcialist_schedule";
 import { retrieverToolInfoEstadiaPaciente } from "./tools/info_estadia_paciente";
 import { get_info_by_trato } from "./tools/get_info_by_trato";
 import { obras_sociales_tool } from "./tools/obras_sociales";
+import { leadSchema} from "./types/type_lead";
+import {load_lead} from "./tools/load_lead";
 import dotenv from "dotenv";
+
 dotenv.config();
 
-
+const OPENAI_API_KEY_IMAR = process.env.OPENAI_API_KEY_IMAR || "";
 // process.env.LANGCHAIN_CALLBACKS_BACKGROUND = "true";
 // import * as dotenv from "dotenv";
 // dotenv.config();
@@ -51,20 +55,34 @@ const tools = [
   obras_sociales_tool,
 ];
 
+
+
+
 const stateAnnotation = MessagesAnnotation;
 
 const subgraphAnnotation = Annotation.Root({
   ...stateAnnotation.spec,
   info_paciente: Annotation<InfoPaciente>,
   tiene_convenio: Annotation<Boolean>,
+  is_new_patient: Annotation<Boolean>,
+  is_familiar: Annotation<Boolean>,
+  is_ambulatorio: Annotation<Boolean>,
+  is_internacion: Annotation<Boolean>,
 });
+
+// Manera de inicializar el estado de la conversación
+// is_new_patient: Annotation<Boolean>({reducer: (a, b) => b ,default: () => true}),
+let isNew = true
+let isConsultrioExterno = false
+
+
 
 const model = llm.bindTools(tools);
 
 const toolNode = new ToolNode(tools);
 
 async function callModel(state: typeof subgraphAnnotation.State) {
-  const { messages } = state;
+  const { messages  } = state;
 
   // BassemessageField parameters, which are passed to the model
   const systemsMessage = new SystemMessage(
@@ -127,13 +145,16 @@ async function callModel(state: typeof subgraphAnnotation.State) {
 
       - Si la consulta es por un tratamiento ambulatorio o internación, se procede con las REGLAS DE CONVERSACION y luego se utiliza la herramienta "get_info_by_trato" para obtener la información del paciente y su consulta. para esa instancia ya tendrás algo de información del paciente y su consulta. debes recopilar la informacion faltante para poder avanzar con la consulta.
 
-
+   
 
     Internacion: Actualmente no trabajamos con...... En este caso tendríamos que confeccionar un presupuesto ajustado a sus requerimientos, para presentarlo en su Obra Social. Para ello necesitamos contar con la Historia Clínica y cualquier información adicional sobre el estado actual del paciente.
 
     Ambulatorio: Actualmente no trabajamos con...... En este caso tendríamos que confeccionar un presupuesto ajustado a sus requerimientos, para presentarlo en su Obra Social. Para ello necesitamos que nos envíe la orden médica con la indicación del tratamiento/ sesiones y cualquier información adicional.  En caso de que no tenga una indicación médica le podemos brindar un turno con equipo médico para que le armen un plan de tratamiento a su medida.
 
+    ### TEMAS IMPORTANTES A TENER EN CUENTA:
+    - Atención por profesionales medicos con turno: en este caso cada médico tiene su propia gestión de cobro y trabaja con obras sociales diferentes, por esto mismo hay que consultar en recepcion sobre las obras sociales que trabajo cada médico y si cobra un diferencial o no.
 
+    
    
 
     `
@@ -142,8 +163,180 @@ async function callModel(state: typeof subgraphAnnotation.State) {
   const response = await model.invoke([systemsMessage, ...messages]);
 
   // We return a list, because this will get added to the existing list
+  console.log("NODO AGENTE: ");
+  
   return { messages: [response] };
 }
+
+const routeStart = (state: typeof subgraphAnnotation.State): "extraction" |  "agent"=> {
+  const {is_new_patient} = state;
+  
+  console.log("is new paciente: ", isNew);
+  
+  if(isNew){
+    console.log("Deriva a extraction desde routestart");
+    
+    return "extraction"
+  }else{
+    console.log("Deriva a agent desde routestart");
+
+    return "agent"
+  }
+}
+
+const extractInfo = async (state: typeof subgraphAnnotation.State, config : LangGraphRunnableConfig) => {
+  const {messages} = state;
+  const cel_number = config.configurable?.thread_id;
+  console.log("ExtractInfo: ");
+  
+  const schema = z.object({
+    Full_Name: z
+      .string()
+      .describe(
+        "Si es un familiar, su nombre completo ya que va a ser el nombre del contacto para el paciente",
+      ),
+    Email: z
+      .string()
+      .optional()
+      .describe("El mail de la persona que se está contactando"),
+      Nombre_y_Apellido_paciente: z
+      .string()
+      
+      .describe("The end date of the trip. Should be in YYYY-MM-DD format"),
+      Tipo_de_tratamiento: z
+      .enum(["Tto. ambulatorio" , "Internación", "Consultorio externo"])
+      .describe(
+        "El tipo de tratamiento que se está solicitando, si es ambulatorio o internación, esto aplica si es un ingreso nuevo",
+      ),
+      Last_Name: z.string().describe("Apellido del paciente, si él que está hablando es un familiar pregunarle por el apellido del paciente"),
+     tipo_de_psible_cliente: z
+      .enum(["Paciente", "Familiar responsable", "Contacto institucional"]).describe("Es el tipo de cliente que se está contactando"),
+      Obra_social: z
+      .string().describe("La obra social de la persona que va a recibir el tratamiento o la internación"),
+      Description: z
+      .string().describe("Descripción de la consulta, un resumen de la consulta, extraer la más importante y el motivo por el cual se contacta"),
+  });
+
+  const modelExtraction = new ChatOpenAI({ model: "gpt-4o", temperature: 0 , apiKey:OPENAI_API_KEY_IMAR }).bindTools([
+    {
+      name: "extraer_info_primer_consulta",
+      description: "Una herramienta para extraer información de la conversación que se está iniciando, para identificar el tipo de persoona que se está contactando y el motivo de la consulta.",
+      schema: schema,
+    },
+  ]).withConfig({tags: ["nostream"]});
+
+  const prompt = `Eres un asistente de IA para gestionar consultas de IMAR.
+  Debes ir guiando de manera natural al usuario para que te brinde la información necesaria para poder ayudarlo.
+  En este caso, el usuario es un paciente o familiar que está contactando a IMAR para solicitar un tratamiento o una internación.
+  El objetivo es extraer la información necesaria para poder ayudarlo a gestionar su consulta.
+  
+  La información que debes extraer es la siguiente: 
+          full_name: Nombre completo de la persona que se está contactando (si es un familiar, su nombre completo ya que va a ser el nombre del contacto para el paciente).
+          email: El mail de la persona que se está contactando.
+          obra_social: La obra social de la persona que va a recibir el tratamiento o la internación.
+          tipo_de_tratamiento: El tipo de tratamiento que se está solicitando, si es ambulatorio, internación o consultorio externo, esto aplica si es un ingreso nuevo.
+          nombre_y_apellido_paciente: Nombre y apellido del paciente que va a recibir el tratamiento o la internación.
+
+          1. Usa exclusivamente el historial de la conversación para extraer estos campos.
+          2. No adivines ni inventes información.
+          3. Email, Obra_social y Tipo_de_tratamiento , full_name, Last_name , son obligatorios:
+            - Si falta uno de ellos, y el usuario te hace un preguna sobre otro tema entonces responde a la pregunta de manera natural y luego vuelve a preguntar por el dato que falta.
+             
+          4. el campo (Nombre_y_Apellido_paciente) son opcionales; si no se menciona, déjalo en blanco y sigue.
+
+          ### REGLA ESTRICTA:
+          - No brindes ninguna información por fuera del contexto de esta conversación, si alguna pregunta no la sabes di que en un momento luego de recopilar la información vas a poder ayudarlo.
+          - No respondas a preguntas que no tengan que ver con la consulta del paciente o familiar.
+          - No respondas sobre médicos, ni horarios de atención, ni información general para la estadía del paciente en IMAR.
+          - No respondas sobre información de la web, ni de la institución.
+          - No respondas sobre obra sociales ni coberturas.
+          - Conversa amablemente, responde a las preguntas que puedas y recuerda que el objetivo es ayudar al paciente o familiar a gestionar su consulta primero que nada recopilando información.
+
+          `
+
+          const humanMessage = `Aqui está la conversación completa hasta ahora:\n${formatMessages(state.messages)}`;
+
+          const response = await modelExtraction.invoke([
+            { role: "system", content: prompt },
+            { role: "human", content: humanMessage },
+          ]);
+
+          console.log("Response: ", response);  
+          
+        
+          const toolCall = response.tool_calls?.[0];
+          console.log("ToolCall: ", toolCall);
+          
+          if (!toolCall) {
+            return {
+              messages: [response],
+            };
+          }
+
+          const extractedDetails = toolCall.args as z.infer<typeof schema>;
+          const { Full_Name, Email, Obra_social, Tipo_de_tratamiento, Last_Name } = extractedDetails;
+          if(!Full_Name || !Email || !Obra_social || !Tipo_de_tratamiento || Last_Name ){
+            return {
+              messages: [`Sólo me falta algo de información para poder ayudarte, por favor completame los siguientes datos ${Full_Name == null ? "nombre completo" : "" } , ${!Email ? "email" : ""} , ${!Obra_social ? "obra social" : ""} , ${!Tipo_de_tratamiento ? "tipo de tratamiento" : ""} , ${!Last_Name ? "apellido del paciente" : ""}` ]
+            };
+          }
+
+
+      
+
+
+          const extractToolResponse = new ToolMessage("Muy bien, con estos datos podemos continuar con la conversación", toolCall?.id as string, 
+            toolCall.name    
+          );
+
+          console.log("ExtractDetails: ", extractedDetails);
+
+          const resLoadLead = await load_lead({lead: extractedDetails})
+          if(resLoadLead) return isNew = false
+
+          if(Tipo_de_tratamiento === "Consultorio externo"){
+            isConsultrioExterno = true
+          }
+
+          return new Command({
+            // state update
+            update: {
+              messages: [ response , extractToolResponse],
+              consultorio_externo: isConsultrioExterno,
+              isNew_patient: isNew,
+              info_paciente: {
+                full_name: extractedDetails.Full_Name,
+                Last_Name: extractedDetails.Last_Name,
+                email: extractedDetails.Email,
+                obra_social: extractedDetails.Obra_social,
+                tipo_de_tratamiento: extractedDetails.Tipo_de_tratamiento,
+                nombre_y_apellido_paciente: extractedDetails.Nombre_y_Apellido_paciente,
+                phone: cel_number
+              },
+            },
+            // control flow
+            // goto: "myOtherNode",
+          });
+
+         
+
+}
+
+
+function routeAfterExtraction(
+  state: typeof subgraphAnnotation.State
+): "agent" | "__end__" | "consultorio_externo" {
+  console.log("routeAfterExtraction: es nuevo? ", isNew);
+  
+  // Si es nuevo sigue extrayebdo datos
+  if (!isNew) {
+    return "agent";
+  }
+
+  // De otra manera va hacia el agente a seguir la consulta
+  return "__end__";
+}
+
 
 function checkToolCall(state: typeof subgraphAnnotation.State) {
   const { messages } = state;
@@ -160,14 +353,33 @@ function checkToolCall(state: typeof subgraphAnnotation.State) {
   // Otherwise, we stop (reply to the user)
 }
 
+// const consultorio_externo = async (state: typeof subgraphAnnotation.State) => {
+//   const { messages, info_paciente } = state;
+
+//   const conversation = formatMessages(messages);
+
+//   const prompt = `Como asistente de IMAR, debes ayudar al paciente a gestionar su turno con consultorios externos
+//     ésta persona ya viene siendo atendida por un agente, por eso voy a compartirte la conversacion completa hasta ahora:
+//     ${conversation}
+//     La persona que se contacta es ${info_paciente.Full_name} y su obra social es ${info_paciente.obra_social}
+//     Debes resolver las dudas sobre consultorios externos y turnos, si no sabes algo no respondas, sólo responde lo que sabes.
+//     vas a tener a disposiscion una herramienta para verificar si la obra social tiene convenio con IMAR, si no lo tiene entonces vas a tener que ofrecerle una consulta particular.
+//   `
+
+// }
+
 const graph = new StateGraph(subgraphAnnotation);
 
 graph
+
   .addNode("agent", callModel)
+  .addNode("extraction", extractInfo)
+  // .addNode("consultorio_externo", consultorio_externo)
   .addNode("tools", toolNode)
-  .addEdge(START, "agent")
-  .addConditionalEdges("agent", toolNode)
-  .addEdge("tools", "agent");
+  .addConditionalEdges(START, routeStart, ["extraction", "agent"])
+  .addConditionalEdges("extraction", routeAfterExtraction, ["agent", "__end__"])
+  .addConditionalEdges("agent", checkToolCall)
+  .addEdge("tools", "agent")
 
 const checkpointer = new MemorySaver();
 

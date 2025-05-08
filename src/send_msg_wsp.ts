@@ -52,15 +52,15 @@ export const sendMessageWsp = async ({
 //   ],
 // };
 
-await sendMessageWsp({
-  business_phone_number_id: "643011302226865",
-  WEBHOOK_VERIFY_TOKEN:
-    "EAARB8DTXEmoBO36ib5VFo152NoHkKcGfsVGogxyVHq7PLFxJD8MLrkMlmx8L7Fuq6PRMzWx39MZBR3qnAr8Qmi20jS2bw6RoaNIgXgAMZAzKM1j4b8p3vblwQM3TOLc47WVvN1Yn5YixVsSsZC1eLZB0j9PFFFwnHBAA6GrdPPtwcAsVuG2BqMnxBh2ZAZAtqsLTlVxEYMMJbXLtZBOU8xTY6A3pKLKarMd6p7u",
-  template: {
-    ...messageTemplateGeneric,
-    to: 542215258473,
-    text: {
-      body: "Asi que te vas a chile a ver al pincha?",
-    },
-  },
-});
+// await sendMessageWsp({
+//   business_phone_number_id: "643011302226865",
+//   WEBHOOK_VERIFY_TOKEN:
+//     "EAARB8DTXEmoBO36ib5VFo152NoHkKcGfsVGogxyVHq7PLFxJD8MLrkMlmx8L7Fuq6PRMzWx39MZBR3qnAr8Qmi20jS2bw6RoaNIgXgAMZAzKM1j4b8p3vblwQM3TOLc47WVvN1Yn5YixVsSsZC1eLZB0j9PFFFwnHBAA6GrdPPtwcAsVuG2BqMnxBh2ZAZAtqsLTlVxEYMMJbXLtZBOU8xTY6A3pKLKarMd6p7u",
+//   template: {
+//     ...messageTemplateGeneric,
+//     to: 542215258473,
+//     text: {
+//       body: "Asi que te vas a chile a ver al pincha?",
+//     },
+//   },
+// });

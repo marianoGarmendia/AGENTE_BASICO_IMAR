@@ -7,7 +7,8 @@
     "dev": "npx tsx src/index.ts",
     "auth": "npx tsx src/auth_zoho.ts",
     "refresh": "npx tsx src/refresh_token_zoho.ts",
-    "getLeads": "npx tsx src/api_zoho/get_leads.ts"
+    "getLeads": "npx tsx src/api_zoho/get_leads.ts",
+    "postLead": "npx tsx src/api_zoho/post_lead.ts"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",

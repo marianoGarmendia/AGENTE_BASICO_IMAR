@@ -1,7 +1,12 @@
 import dotenv from "dotenv";
 import path from "path";
+import { fileURLToPath } from 'node:url'
+import { dirname } from 'node:path'
 import fs from "fs";
 dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
 
 const ACCESS_TOKEN = process.env.ZOHO_ACCESS_TOKEN || "";
 
@@ -18,6 +23,8 @@ export async function getLeads():Promise<any> {
          
          if (data && data.data) {
             const leads = data.data;
+            // Calcula __filename y __dirname a partir de import.meta.url
+
       
             // Definir la ruta del archivo donde se guardarán los leads
             const filePath = path.join(__dirname, 'leads.json');
@@ -48,7 +55,7 @@ export async function getLeads():Promise<any> {
 }
 
 // Devuelve un objeto con la prop data que es un array de leads objetos
-await  getLeads()
+// await  getLeads()
 
 
 
