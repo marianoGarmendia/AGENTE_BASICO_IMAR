@@ -26,6 +26,8 @@ import { obras_sociales_tool } from "./tools/obras_sociales";
 import { leadSchema} from "./types/type_lead";
 import {load_lead} from "./tools/load_lead";
 import dotenv from "dotenv";
+import { obras_sociales } from "./utils/obras-sociales";
+import {especialidades_dias_profesionales} from "./utils/especialidades";
 
 dotenv.config();
 
@@ -94,9 +96,16 @@ async function callModel(state: typeof subgraphAnnotation.State) {
       - Horarios de atención
       - Información general para la estadía del paciente en IMAR
       - Información disponible en la web
+
+      ### INFORMACIÓN RELEVANTE:
+      - Algunos profesionales cuando atienden por consultorios externos trabajan con ciertas obras sociales que ellos deciden y además en algunos casos cobran un diferencial el cual gestionan directamente con el profesional al momento de la consulta
+
+      ### INFORMACIOIN SOBRE ESPCIALIDADES Y PROFESIONALES:
+
+      ${JSON.stringify(especialidades_dias_profesionales)}
       
       ### Herramientas disponibles:
-      - getInfoEspcialistSchedule: Esta herramienta se utiliza cuando un usuario consulta por los días que atiende un médico en particular o quiere saber que médicos hay por especialidad y sus días de atención.
+      - getInfoEspcialistSchedule: Esta herramienta se utiliza cuando un usuario consulta por los días que atiende un médico en particular o quiere saber que médicos hay por especialidad y sus días de atención. o menciona a un medico por su nombre o apellido., ademmas tenes la información en el contexto.
       - tavily_search: Esta herramienta se utiliza cuando un usuario consulta por información y no la encontras disponible en tu contexto entonces vas a obtener información de la web. con la herramienta tavily
       - retriever_infogeneral_estadia_paciente: Esta herramienta se utiliza para responder preguntas sobre el documento de información general para la estadía del paciente en IMAR.
       - verificar_obras_sociales: Esta herramienta se utiliza para verificar si IMAR tiene convenio con la obra social del paciente.
@@ -120,6 +129,8 @@ async function callModel(state: typeof subgraphAnnotation.State) {
       [IMAR]: Contamos con traumatología, ecografías, radiografías, laboratorios, neurólogos, psiquiatras, neurocirujanos, fisiatría, médica clínica, cardiología, especialista del dolor, entre otros.
 
       ### REGLAS DE ORDEN DE LA CONVERSACION (recopila y mantene en memoria la información que te vaya brindando)
+      1 - LAS RESPUESTAS DEBEN SER LO MAS BREVES POSIBLES PARA HACER DINAMICA LA CONVERSACION, SIEMPRE RESPONDER EN BASE A LO QUE TE PREGUNTAN Y NO DAR INFORMACION DE MAS.
+
       - Saludar al paciente y presentarse como asistente de IMAR.
       - Preguntar si es paciente o familiar.
       - Preguntar el motivo de la consulta.
@@ -154,12 +165,22 @@ async function callModel(state: typeof subgraphAnnotation.State) {
     ### TEMAS IMPORTANTES A TENER EN CUENTA:
     - Atención por profesionales medicos con turno: en este caso cada médico tiene su propia gestión de cobro y trabaja con obras sociales diferentes, por esto mismo hay que consultar en recepcion sobre las obras sociales que trabajo cada médico y si cobra un diferencial o no.
 
+    ### REGLA IMPORTANTE EN CASO DE TENER QUE DERIVAR A UN HUMANO LA CONSULTA:
+          - En el caso no que no tengas información oara responder a la consulta del paciente o familiar, entonces debes decirle que en este momento no puedes ayudarlo/a con esa consulta, por eso vas a darle un numero al cual comunicarse para una atención aun más personalizada
+          - El numero es 221-45588999
+
+      ### INFORMACIÓN SOBRE LA ACTUALIDAD:
+      - El dia y hora de hoy es ${new Date().toLocaleDateString('es-AR', {
+        timeZone: 'America/Argentina/Buenos_Aires'
+      })}
+
     
    
 
     `
   );
 
+  // @ts-ignore
   const response = await model.invoke([systemsMessage, ...messages]);
 
   // We return a list, because this will get added to the existing list
@@ -209,8 +230,8 @@ const extractInfo = async (state: typeof subgraphAnnotation.State, config : Lang
         "El tipo de tratamiento que se está solicitando, si es ambulatorio o internación, esto aplica si es un ingreso nuevo",
       ),
       Last_Name: z.string().describe("Apellido del paciente, si él que está hablando es un familiar pregunarle por el apellido del paciente"),
-     tipo_de_psible_cliente: z
-      .enum(["Paciente", "Familiar responsable", "Contacto institucional"]).describe("Es el tipo de cliente que se está contactando"),
+     Tipo_de_posible_cliente: z
+      .enum(["Paciente", "Familiar responsable", "Contacto institucional"]).describe("Es el tipo de cliente que se está contactando, detectar si es un paciente o un familiar responsable, o un contacto institucional como de otra isntitucion o un medico que consulta por un paciente"),
       Obra_social: z
       .string().describe("La obra social de la persona que va a recibir el tratamiento o la internación"),
       Description: z
@@ -229,8 +250,14 @@ const extractInfo = async (state: typeof subgraphAnnotation.State, config : Lang
   Debes ir guiando de manera natural al usuario para que te brinde la información necesaria para poder ayudarlo.
   En este caso, el usuario es un paciente o familiar que está contactando a IMAR para solicitar un tratamiento o una internación.
   El objetivo es extraer la información necesaria para poder ayudarlo a gestionar su consulta.
-  
-  La información que debes extraer es la siguiente: 
+
+         Primero que nada presentate y saluda amablemente, di quien eres y que vas a ayudarlo/a a gestionar su consulta.
+
+          ### LISTADO DE OBRAS SOCIALES:
+
+          ${JSON.stringify(obras_sociales)}
+
+         La información que debes extraer es la siguiente: 
           full_name: Nombre completo de la persona que se está contactando (si es un familiar, su nombre completo ya que va a ser el nombre del contacto para el paciente).
           email: El mail de la persona que se está contactando.
           obra_social: La obra social de la persona que va a recibir el tratamiento o la internación.
@@ -241,7 +268,6 @@ const extractInfo = async (state: typeof subgraphAnnotation.State, config : Lang
           2. No adivines ni inventes información.
           3. Email, Obra_social y Tipo_de_tratamiento , full_name, Last_name , son obligatorios:
             - Si falta uno de ellos, y el usuario te hace un preguna sobre otro tema entonces responde a la pregunta de manera natural y luego vuelve a preguntar por el dato que falta.
-             
           4. el campo (Nombre_y_Apellido_paciente) son opcionales; si no se menciona, déjalo en blanco y sigue.
 
           ### REGLA ESTRICTA:
@@ -251,6 +277,10 @@ const extractInfo = async (state: typeof subgraphAnnotation.State, config : Lang
           - No respondas sobre información de la web, ni de la institución.
           - No respondas sobre obra sociales ni coberturas.
           - Conversa amablemente, responde a las preguntas que puedas y recuerda que el objetivo es ayudar al paciente o familiar a gestionar su consulta primero que nada recopilando información.
+
+          ### REGLA IMPORTANTE EN CASO DE TENER QUE DERIVAR A UN HUMANO LA CONSULTA:
+          - En el caso no que no tengas información oara responder a la consulta del paciente o familiar, entonces debes decirle que en este momento no puedes ayudarlo/a con esa consulta, por eso vas a darle un numero al cual comunicarse para una atención aun más personalizada
+          - El numero es 221-45588999
 
           `
 
@@ -275,24 +305,29 @@ const extractInfo = async (state: typeof subgraphAnnotation.State, config : Lang
 
           const extractedDetails = toolCall.args as z.infer<typeof schema>;
           const { Full_Name, Email, Obra_social, Tipo_de_tratamiento, Last_Name } = extractedDetails;
-          if(!Full_Name || !Email || !Obra_social || !Tipo_de_tratamiento || Last_Name ){
+          if(!Full_Name || !Email || !Obra_social || !Tipo_de_tratamiento || !Last_Name ){
             return {
-              messages: [`Sólo me falta algo de información para poder ayudarte, por favor completame los siguientes datos ${Full_Name == null ? "nombre completo" : "" } , ${!Email ? "email" : ""} , ${!Obra_social ? "obra social" : ""} , ${!Tipo_de_tratamiento ? "tipo de tratamiento" : ""} , ${!Last_Name ? "apellido del paciente" : ""}` ]
+              messages: [`Sólo me falta algo de información para poder ayudarte, por favor completame los siguientes datos ${!Full_Name ? "nombre completo" : "" } , ${!Email ? "email" : ""} , ${!Obra_social ? "obra social" : ""} , ${!Tipo_de_tratamiento ? "tipo de tratamiento" : ""} , ${!Last_Name ? "apellido del paciente" : ""}` ]
             };
           }
 
 
-      
+          const infoLead = {
+            ...extractedDetails,
+            Phone: cel_number,
+          }
 
 
           const extractToolResponse = new ToolMessage("Muy bien, con estos datos podemos continuar con la conversación", toolCall?.id as string, 
             toolCall.name    
           );
 
-          console.log("ExtractDetails: ", extractedDetails);
+          console.log("ExtractDetails: ", infoLead);
 
-          const resLoadLead = await load_lead({lead: extractedDetails})
-          if(resLoadLead) return isNew = false
+          const resLoadLead = await load_lead({lead: infoLead})
+          if(resLoadLead) {
+            isNew = false
+          } 
 
           if(Tipo_de_tratamiento === "Consultorio externo"){
             isConsultrioExterno = true

@@ -27,8 +27,12 @@ export const load_lead = async ({lead}:{lead:any}) => {
         }
 
         const data = await response.json();
-        console.dir(data, { depth: null });
-        return data
+        console.dir(data, { depth: null })
+        if (data.status === "success") {
+            return data.status
+
+        };
+        return null
     } catch (error) {
         throw new Error("ha ocurrido un error" + error); // Re-throw the error for further handling if needed
     }
