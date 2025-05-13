@@ -57,6 +57,7 @@ export const post_lead = async (
     console.dir(data, { depth: null });
     if (data.status === "success") {
       console.log("Lead procesado correctamente:", data);
+      res.status(200).json(data);
       // res.status(200).json(data);}
     }
   } catch (error) {

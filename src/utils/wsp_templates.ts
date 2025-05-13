@@ -12,4 +12,15 @@
     },
    
   };
+
+  // Template para botones de inico de conversación
+
+/*
+name: usuario_consulta_v1 • Spanish (ARG) - seleciona entre tto ambulatorio- intenrnacion - consultorios externos
+name: usuario_consulta_v2 • Spanish (ARG) - 
+
+
+*/
+
+
   
