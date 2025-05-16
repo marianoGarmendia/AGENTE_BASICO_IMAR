@@ -114,6 +114,7 @@ app.get("/webhook", (req, res) => {
             // context: enterpriseContext.bot_context,
   
             messages: firstMessage.text.body,
+            mobile: cel_number,
           },
           {
             configurable: { thread_id: cel_number },

@@ -4,7 +4,7 @@ import { type ZohoLead } from "../types/zoho_types.js";
 dotenv.config();
 
 const ZOHO_ACCESS_TOKEN = process.env.ZOHO_ACCESS_TOKEN || "";
-let url = "https://www.zohoapis.com/crm/v2/Leads/upsert";
+let url = "https://www.zohoapis.com/crm/v2/Deals/upsert";
 
 /**
  * Carga un lead en Zoho CRM.
@@ -13,25 +13,16 @@ let url = "https://www.zohoapis.com/crm/v2/Leads/upsert";
  * @returns
  */
 
-export const post_lead = async (
+export const post_trato = async (
   req: Request<unknown, unknown, { lead: ZohoLead }>,
   res: Response
 ) => {
   const { lead } = req.body; // Asegúrate de que el cuerpo de la solicitud contenga un objeto "lead"
 
-  const bodyInsertLead = {
+  const bodyInsertTrato = {
     data: [
       {
-        Full_name: lead.Full_name,
-        Email: lead.Email,
-        Tipo_de_tratamiento: lead.Tipo_de_tratamiento,
-        Nombre_y_Apellido_paciente: lead.Nombre_y_Apellido_paciente, // Nombre del paciente, solo nombre
-        Apellido_paciente: lead.Apellido_paciente, // Apellido del paciente
-        Tipo_de_posible_cliente: lead.Tipo_de_posible_cliente, //"FAMILIAR RESPONSABLE , CONTACTO INSTITUCIONAL , PACIENTE"
-        Mobile: lead.Mobile,
-        Obra_social: lead.Obra_social,
-        Description:
-          lead.Description || "",
+       Tipo_de_oportunidad:""
       },
     ],
   };
@@ -39,13 +30,13 @@ export const post_lead = async (
   let headers = {
     Authorization: `Zoho-oauthtoken ${ZOHO_ACCESS_TOKEN}`,
   };
-  console.log("cargando lead en route lead/create", bodyInsertLead);
+  console.log("cargando lead en route lead/create", bodyInsertTrato);
   
   try {
     const response = await fetch(url, {
       method: "POST",
       headers: headers,
-      body: JSON.stringify(bodyInsertLead), // Asegúrate de que el lead esté en un array, ya que la API espera un array de objetos
+      body: JSON.stringify(bodyInsertTrato), // Asegúrate de que el lead esté en un array, ya que la API espera un array de objetos
       
     });
     if (!response.ok) {
@@ -70,23 +61,20 @@ export const post_lead = async (
 
 // body para insertar un lead
 
-const bodyInsertLead = {
-  data: [
-    {
-   
-      Email: "otroLead@lead.com",
-      Tipo_de_tratamiento: "Tto ambulatorio",
-      Mobile: "2214371684",
-      Tipo_de_posible_cliente: "Familiar Responsable", // cHEQUEAR SI ES ASI CUANDO ES MULTI-SELECT - "FAMILIAR RESPONSABLE , CONTACTO INSTITUCIONAL , PACIENTE"
-      Nombre_y_Apellido_paciente: "juan", // Es el nombre del paciente
-      Apellido_paciente: "Perez",
-      Full_Name: "", // nombre completo del contacto, puede llegar a ser el mismo paciene o el familiar responsable
-      Description:
-        "Este es un lead de prueba que estamos configruacion desde la api",
-        Obra_social:"un id de la obra social que debo recopilar"
-    },
-  ],
-};
+// const bodyInsertLead = {
+//   data: [
+//     {
+//       Last_Name: "Mariano osde",
+//       Email: "otroLead@lead.com",
+//       Tipo_de_tratamiento: "Tto ambulatorio",
+//       Lead_Status: "No contactado",
+//       Tipo_de_posible_cliente: "Familiar Responsable", // cHEQUEAR SI ES ASI CUANDO ES MULTI-SELECT
+//       Phone: "2214371684",
+//       Description:
+//         "Este es un lead de prueba que estamos configruacion desde la api",
+//     },
+//   ],
+// };
 
 // (async () => {
 //   await post_lead();

@@ -45,4 +45,16 @@ Primer
 
 PROMPT SYSTEM IMAR
 
-- tODO LOQ EU SON CONSULTORIOS EXTERNOS, MEDICOS, tiene sus propias politicas y obras sociales por las cuales atienden, todos por ioma, bono a,b,c y diferenciados según el caso
+- Si adam trabaja por ioma
+
+- tODO LOQ EU SON CONSULTORIOS EXTERNOS, turnos MéDICOS, cada profesional gestiona 
+
+- Cuando solicita turno con un medico eso es tratamiento ambulatorio , es por consultorio externo
+
+-----------------------
+
+WHATSAPP
+
+
+- Opcion de conectar con 360 dialog
+- https://www.360dialog.com/es/whatsapp-business-api

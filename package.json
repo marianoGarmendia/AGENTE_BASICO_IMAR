@@ -5,6 +5,7 @@
   "scripts": {
     "start": "",
     "dev": "npx tsx src/index.ts",
+    "preinstall": "npx npm-force-resolutions",
     "auth": "npx tsx src/auth_zoho.ts",
     "refresh": "npx tsx src/refresh_token_zoho.ts",
     "getLeads": "npx tsx src/api_zoho/get_leads.ts",
@@ -12,15 +13,16 @@
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",
-    "@types/express": "^5.0.0"
+    "@types/express": "^5.0.0",
+    "npm-force-resolutions": "^0.0.10"
   },
   "peerDependencies": {
     "typescript": "^5.0.0"
   },
   "dependencies": {
-    "@langchain/community": "0.3.34",
-    "@langchain/core": "0.3.42",
-    "@langchain/langgraph": "0.2.53",
+    "@langchain/community": "",
+    "@langchain/core": "",
+    "@langchain/langgraph": "",
     "@langchain/ollama": "0.2.0",
     "@langchain/openai": "0.2.8",
     "@langchain/tavily": "^0.1.1",
@@ -28,10 +30,12 @@
     "cors": "2.8.5",
     "dotenv": "^16.5.0",
     "express": "^4.21.2",
+    "langchain": "^0.3.24",
     "node-fetch": "^3.3.2",
     "pdf-parse": "^1.1.1",
     "resend": "4.1.2",
     "uuid": "10.0.0",
     "zcrmsdk": "^1.1.0"
   }
+
 }

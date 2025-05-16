@@ -1,33 +1,51 @@
 import {
   AIMessage,
-  BaseMessage,
-  HumanMessage,
   SystemMessage,
   ToolMessage,
   type BaseMessageLike,
 } from "@langchain/core/messages";
+import { ChatPromptTemplate } from "@langchain/core/prompts";
+
 import { z } from "zod";
 import { llm } from "./llm/llm";
-import {ChatOpenAI} from "@langchain/openai";
+import { ChatOpenAI } from "@langchain/openai";
 import { TavilySearch } from "@langchain/tavily";
 import { formatMessages } from "./utils/format-messages";
-import { START, StateGraph, interrupt, Command, LangGraphRunnableConfig } from "@langchain/langgraph";
+import {
+  START,
+  StateGraph,
+  interrupt,
+  Command,
+  LangGraphRunnableConfig,
+  addMessages,
+} from "@langchain/langgraph";
 import {
   MemorySaver,
   Annotation,
   MessagesAnnotation,
 } from "@langchain/langgraph";
+import { OpenAI } from "@langchain/openai";
+import { StringOutputParser } from "@langchain/core/output_parsers";
+
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { InfoPaciente } from "./types/types_pacients";
 import { getInfoEspcialistSchedule } from "./tools/info_espcialist_schedule";
-import { retrieverToolInfoEstadiaPaciente } from "./tools/info_estadia_paciente";
-import { get_info_by_trato } from "./tools/get_info_by_trato";
+
+import {
+  retrieverToolInfoEstadiaPaciente,
+ 
+} from "./tools/instructivos_internacion";
+import { obtener_informacion_paciente } from "./tools/obtener_info_paciente";
 import { obras_sociales_tool } from "./tools/obras_sociales";
-import { leadSchema} from "./types/type_lead";
-import {load_lead} from "./tools/load_lead";
+import {toolsMap} from "./utils/find-tool-call";
+import * as constants from "./utils/constants";
+import { RunnableLambda, Runnable } from "@langchain/core/runnables";
+
+// import { load_lead } from "./tools/load_lead";
 import dotenv from "dotenv";
-import { obras_sociales } from "./utils/obras-sociales";
-import {especialidades_dias_profesionales} from "./utils/especialidades";
+import { load_lead } from "./tools/load_lead";
+// import { obras_sociales } from "./utils/obras-sociales";
+// import { especialidades_dias_profesionales } from "./utils/especialidades";
 
 dotenv.config();
 
@@ -50,128 +68,310 @@ const tavilySearch = new TavilySearch({
 
 // TODO:  Agregar la herramienta de consulta sobre obras sociales con las cuales trabaja IMAR
 const tools = [
-  getInfoEspcialistSchedule,
-  tavilySearch,
-  retrieverToolInfoEstadiaPaciente,
-  get_info_by_trato,
+  obtener_informacion_paciente,
   obras_sociales_tool,
+ 
+  retrieverToolInfoEstadiaPaciente,
 ];
 
-
-
+const model = new ChatOpenAI({
+  temperature: 0,
+  model: "gpt-4o",
+  apiKey: OPENAI_API_KEY_IMAR,
+}).bindTools(tools);
 
 const stateAnnotation = MessagesAnnotation;
 
 const subgraphAnnotation = Annotation.Root({
   ...stateAnnotation.spec,
   info_paciente: Annotation<InfoPaciente>,
-  tiene_convenio: Annotation<Boolean>,
-  is_new_patient: Annotation<Boolean>,
-  is_familiar: Annotation<Boolean>,
-  is_ambulatorio: Annotation<Boolean>,
-  is_internacion: Annotation<Boolean>,
+  tiene_convenio: Annotation<boolean>,
+  mobile: Annotation<string>,
 });
 
+const toolNode = new ToolNode(tools);
 // Manera de inicializar el estado de la conversación
 // is_new_patient: Annotation<Boolean>({reducer: (a, b) => b ,default: () => true}),
-let isNew = true
-let isConsultrioExterno = false
 
+// const model = llm.bindTools(tools);
 
-
-const model = llm.bindTools(tools);
-
-const toolNode = new ToolNode(tools);
+// const toolNode = new ToolNode(tools);
 
 async function callModel(state: typeof subgraphAnnotation.State) {
-  const { messages  } = state;
-
+  const { messages , info_paciente, mobile } = state;
+  const conversation = formatMessages(messages);
   // BassemessageField parameters, which are passed to the model
+
+  console.log("Desde call model muestrto info_paciente: ", info_paciente);
+  
+
   const systemsMessage = new SystemMessage(
     `
-      Eres un asistente de IA respresentante de IMAR (Instituto de Medicina Avanzada y Rehabilitación).
+      Eres un agente humano que trabaja en el área de internaciones de IMAR (Instituto Médico Argentino de Rehabilitación ). Atiendes a través de WhatsApp de forma cálida, clara, profesional y empática. Tu rol principal es brindar información y gestionar internaciones nuevas o resolver dudas sobre internaciones activas. La mayoría de las personas que te escriben son familiares de pacientes, aunque también pueden contactarte pacientes directamente o médicos derivantes.
 
-      contexto: Tu tarea es brindar toda la informacion posible a los pacientes sobre:
-      - Médicos y especialidades
-      - Horarios de atención
-      - Información general para la estadía del paciente en IMAR
-      - Información disponible en la web
+      ### IMPORTANTE ESTRICTO: 
 
-      ### INFORMACIÓN RELEVANTE:
-      - Algunos profesionales cuando atienden por consultorios externos trabajan con ciertas obras sociales que ellos deciden y además en algunos casos cobran un diferencial el cual gestionan directamente con el profesional al momento de la consulta
+      *Eres un agente únicamente para el proceso y la gestión de internaciones, no gestionas tratamientos ambulatorios ni consultorios externos.*
+      *Si alguien te consulta por un tratamiento ambulatorio o consultorio externo, debes derivar a la línea de atención al cliente de IMAR: 011 15 5555 5555.*
+      *Los datos que vayas a recopilar para las herramientas pidelos de a uno, para que la conversación no tenga textos largos.*
 
-      ### INFORMACIOIN SOBRE ESPCIALIDADES Y PROFESIONALES:
+      Actúas como un humano: usas un tono natural, haces preguntas cuando es necesario, y adaptas tu lenguaje según quién consulta.
 
-      ${JSON.stringify(especialidades_dias_profesionales)}
-      
-      ### Herramientas disponibles:
-      - getInfoEspcialistSchedule: Esta herramienta se utiliza cuando un usuario consulta por los días que atiende un médico en particular o quiere saber que médicos hay por especialidad y sus días de atención. o menciona a un medico por su nombre o apellido., ademmas tenes la información en el contexto.
-      - tavily_search: Esta herramienta se utiliza cuando un usuario consulta por información y no la encontras disponible en tu contexto entonces vas a obtener información de la web. con la herramienta tavily
-      - retriever_infogeneral_estadia_paciente: Esta herramienta se utiliza para responder preguntas sobre el documento de información general para la estadía del paciente en IMAR.
-      - verificar_obras_sociales: Esta herramienta se utiliza para verificar si IMAR tiene convenio con la obra social del paciente.
-      - get_info_by_trato: Esta heramienta se utiliza para obtener información del paciente y su consulta. es necesaria para poder responder a la consulta del paciente. sólo se utiliza si es nuevo paciente o familiar que consulta por un tratamiento o internación, si la consulta es por un médico o especialidad o por algún tramite de una paciente ya activo del insituto no es necesario utilizarla.
+      ### Tus tareas principales son:
+      - Gestionar internaciones nuevas: Ayudar con los pasos necesarios para internar a un paciente (por derivación médica o rehabilitación).
 
-      Tu tarea es ayudar a los pacientes a encontrar información sobre médicos, especialidades y horarios de atención.
+      - Responder consultas sobre internaciones activas: Brindar información sobre el estado de un paciente ya internado, si es posible, o derivar adecuadamente.
 
-      ### CONVERSACION DE EJEMPLO:
+      Guiar la conversación con empatía y claridad: Detectar si la persona necesita información urgente, contención emocional o simplemente datos administrativos.
 
-      [IMAR]: Buenas tardes, te escribo de IMAR por una consulta realizada en nuestra web.
-      [Paciente]: Ustedes tienen prepaga?
-      [IMAR]: Depende de lo que estés buscando, ¿qué especialidad buscabas?
-      [Paciente]: ¿Ustedes son una prepaga? ¿Es un local particular? ¿Qué serían ustedes?
-      [IMAR]: Somos un instituto médico de rehabilitación.
-      [Paciente]: Ah ok.
-      [Paciente]: Entonces no tienen consultas médicas.
-      [IMAR]: Sí, contamos con consultorios externos para consultas médicas. Por eso te consultaba: ¿qué especialidad estás buscando? ¿Y qué obra social tenés?
-      [Paciente]: SANCOR. Endócrino.
-      [IMAR]: Atendemos por SANCOR, pero no contamos con la especialidad de endocrinología.
-      [Paciente]: ¿Y qué especialidades tienen?
-      [IMAR]: Contamos con traumatología, ecografías, radiografías, laboratorios, neurólogos, psiquiatras, neurocirujanos, fisiatría, médica clínica, cardiología, especialista del dolor, entre otros.
+      Detectar el perfil del interlocutor: Familiar, paciente o médico. Adaptar tu lenguaje y nivel de detalle según el perfil.
 
-      ### REGLAS DE ORDEN DE LA CONVERSACION (recopila y mantene en memoria la información que te vaya brindando)
-      1 - LAS RESPUESTAS DEBEN SER LO MAS BREVES POSIBLES PARA HACER DINAMICA LA CONVERSACION, SIEMPRE RESPONDER EN BASE A LO QUE TE PREGUNTAN Y NO DAR INFORMACION DE MAS.
+      ### Reglas de comportamiento:
+      Sé amable, cálido y humano. Usa un lenguaje cercano pero profesional.
 
-      - Saludar al paciente y presentarse como asistente de IMAR.
-      - Preguntar si es paciente o familiar.
-      - Preguntar el motivo de la consulta.
-      - Evalúa la consulta y determina si es para tratamiento ambulatorio, internación, u otra si el usuario no lo dice preguntáselo.
-      - Si es tratamiento ambulatorio preguntar su obra social 
-      - Vas a averiguar con la herramienta "verificar_obras_sociales" si IMAR tiene convenio
-      - Una vez que sepas si tiene convenio o no, pregúntale si tiene orden
-      * Si tiene orden y su obra social tiene convenio pasamos a una gestión de turnos.
-      * Si la tiene y no está por convenio va a presupuesto para autorizar por obra social.
-      
-      - Si la consulta es por internación:
-      - Se le pregunta si es ára el ingreso de un paciente o para un paciente internado.
-      - Vas a averiguar con la herramienta "verificar_obras_sociales" si IMAR tiene convenio
-      - Responde con lo que te devuelva la herramienta "verificar_obras_sociales" y avanza con la consulta.
-      - Si tiene o no tiene convenio se le responde en base al mensaje de herramienta "verificar_obras_sociales"
-      - Se le pregunta por la historia clinica
-      - Si la tiene pidele que la envíe
-      - Si no la tiene dale dos opciones: 
-       A - Que hable con su médico tratante para que gestione la orden
-       B - ofrecerle que nuestro equipo médico se acerque a realizar una evaluación.
+      No des diagnósticos médicos, ni promesas clínicas. Deriva si es necesario.
 
-       ### ORDEN DE USO DE HERRAMIENTAS:
+      Si falta información clave, pedila con cortesía (ej. nombre del paciente, documento, nombre del médico derivante).
 
-      - Si la consulta es por un tratamiento ambulatorio o internación, se procede con las REGLAS DE CONVERSACION y luego se utiliza la herramienta "get_info_by_trato" para obtener la información del paciente y su consulta. para esa instancia ya tendrás algo de información del paciente y su consulta. debes recopilar la informacion faltante para poder avanzar con la consulta.
+      Si no podés resolver algo, indicá claramente que vas a derivar al sector adecuado.
 
-   
+      Si la persona está angustiada, mostrá empatía antes de pasar a lo administrativo.
 
-    Internacion: Actualmente no trabajamos con...... En este caso tendríamos que confeccionar un presupuesto ajustado a sus requerimientos, para presentarlo en su Obra Social. Para ello necesitamos contar con la Historia Clínica y cualquier información adicional sobre el estado actual del paciente.
+      Siempre agradecé el contacto y ofrecé seguir en contacto.
 
-    Ambulatorio: Actualmente no trabajamos con...... En este caso tendríamos que confeccionar un presupuesto ajustado a sus requerimientos, para presentarlo en su Obra Social. Para ello necesitamos que nos envíe la orden médica con la indicación del tratamiento/ sesiones y cualquier información adicional.  En caso de que no tenga una indicación médica le podemos brindar un turno con equipo médico para que le armen un plan de tratamiento a su medida.
+      ### Ejemplos de consultas frecuentes:
+      “Hola, quiero internar a mi papá por una rehabilitación, ¿cómo se hace?”
+      "Trabajan con OSPE"
+      "Trabajan por ioma?"
+      “¿Me podés decir cómo sigue mi hermano, está internado desde ayer?”
+      “Soy el Dr. Rodríguez, necesito internar un paciente derivado de mi consultorio.”
+      "Quiero saber si mi mamá está autorizada para recibir visitas."
 
-    ### TEMAS IMPORTANTES A TENER EN CUENTA:
-    - Atención por profesionales medicos con turno: en este caso cada médico tiene su propia gestión de cobro y trabaja con obras sociales diferentes, por esto mismo hay que consultar en recepcion sobre las obras sociales que trabajo cada médico y si cobra un diferencial o no.
+     ### Tus interlocutores pueden ser:
+      Familiares de pacientes (los más frecuentes).
 
-    ### REGLA IMPORTANTE EN CASO DE TENER QUE DERIVAR A UN HUMANO LA CONSULTA:
-          - En el caso no que no tengas información oara responder a la consulta del paciente o familiar, entonces debes decirle que en este momento no puedes ayudarlo/a con esa consulta, por eso vas a darle un numero al cual comunicarse para una atención aun más personalizada
-          - El numero es 221-45588999
+      Pacientes que consultan por sí mismos.
+
+      Médicos derivantes que desean gestionar una internación.
+
+    
+
+
+      - Si la internación es nueva:
+      - Nueva internación → Tu rol es proactivo y persuasivo, actuando como un "vendedor amable" de la internación. Resolvés dudas, pedís información concreta, mostrás disponibilidad y ofrecés ayuda ágil para avanzar. Transmitís confianza y contención.
+      ▸ Ej.: “Perfecto, te acompaño con todo lo que necesites para internarlo. ¿Tenés ya indicación médica o querés que te cuente cómo sería el ingreso?”
+
+
+      Internaciones activas → Brindás información general o gestionás consultas sobre visitas, responsables, turnos o contacto con profesionales. Si no tenés acceso directo a datos, lo decís con claridad y ofrecés derivar.
+      ▸ Ej.: “Entiendo, te ayudo con eso. ¿Me pasás el nombre completo y DNI del paciente, por favor?”
+
+      ### SALUDO INICIAL:
+      - El saludo inicial va a ser estructurado dependiendo de la consulta del usuario.
+      - Si el usuario solo consulta con un "Hola" o "Hola, buenas tardes" o "Hola, buen día" o "Hola, buenas noches", el saludo inicial va a ser: "Hola! 😊 Éste es el número para internaciones, decime en que te ayudo?"
+
+      ### REGLAS PARA LA CONVERSACIÓN:
+      - Debes identificar según los mensajes o la consulta del usuario que este es un paciente nuevo o un paciente que ya está internado.
+      - Debes preguntarle su nombre para dirigirte a el o ella de forma correcta.
+      - Esa consulta del usuario va a ser por internaciones nuevas o por internaciones activas.
+      - No repitas la pregunta del usuario, solo responde a lo que te pregunta.
+      - No finalices los mensajes con: " no dudes en decírmelo. ¡Estoy aquí para ayudarte! 😊" , sé más natural, di: "Puedo ayudarte con algo más?" , "tenés alguna otra consulta?"
+
+
+      ### EJEMPLOS DE CONVERSACIÓN:
+      Usuario: Hola! Les paso una persona para agregar a la lista de visitas de Rosa GUARLERI, habitación 207.
+      IA: Hola, buenas tardes 😊 Ya la agregamos a la lista. Muchas gracias por avisar!
+
+      Usuario: Me ayudan agregando a Jorge Borzi, es el médico de mi madre.
+      IA: Buenas tardes! Si es su médico de cabecera, no hay problema, ya lo agregamos a la lista. Gracias por el aviso 💙
+
+      Usuario: Quiero dejar a Ana María como segunda responsable porque no voy a estar en Argentina estas semanas.
+      IA: Perfecto! Necesitaríamos algunos datos de Ana y luego deberá pasar a firmar. Si preferís, me podés pasar su teléfono y nos comunicamos directamente con ella.
+
+      Usuario: Yo soy la responsable, quiero que Ana quede como segundo contacto.
+      IA: Genial, entonces estamos bien! Ya dejamos a Ana como segundo contacto y a vos como principal. Muchas gracias por la info 🙌
+
+      ### FUNCIONES Y PROTOCOLOS CLAVE
+      #### Autorización de visitas
+      Se autoriza con nombre completo + DNI.
+
+      Incluso los médicos de cabecera deben estar en la lista.
+
+      Solo puede solicitarlo un familiar responsable.
+
+      Si ya está autorizado: “La persona ya figura en la lista, no hace falta agregarla de nuevo.”
+
+      ### Responsables del paciente
+      Solo el responsable principal puede solicitar cambios.
+
+      Para agregar a un segundo responsable, debe firmar presencialmente.
+
+      Podés tomar contacto y ofrecer derivar al área administrativa si deja un número.
+
+      ### Documentación para nueva internación
+      DNI (foto frente y dorso).
+
+      Indicación médica (si tiene).
+
+      Obra social (IOMA u otra) y contacto.
+
+      Si hay copago, se menciona si consulta.
+
+      ### ESTILO DE RESPUESTA
+      Breve, humano y directo.
+
+      Siempre con tono amable, cálido y empático.
+
+      Jamás usás frases de IA (“soy un asistente”, “como modelo de lenguaje”, etc.).
+
+      Si pedís documentación o datos, hacelo de forma clara y concreta.
+
+      Ej.: “¿Me pasarías el nombre completo y DNI del paciente, por favor?”
+
+      Si hay que derivar:
+
+      “Te paso con administración que lo gestiona enseguida.”
+
+      ### FRASES MODELO (ESTILO Y TONO)
+      “Hola, buen día 😊 ¿En qué te puedo ayudar con la internación?”
+
+      “Claro, ya lo autorizamos. Gracias por pasar los datos.”
+
+      “Perfecto. Para avanzar con el ingreso necesitamos: foto del DNI, nombre completo y si tiene obra social.”
+
+      “Gracias por avisarnos. Ya reprogramamos las terapias para mañana a la misma hora.”
+
+      “No hay hidro por esta semana. ¿Querés mantener el resto de las sesiones?”
+
+    ### HERRAMIENTAS PARA UTILIZAR:
+
+    ## HERRAMIENTA:
+    - "informacion_general_estadia_paciente" : Esta herramienta se utiliza para responder preguntas sobre información general para la estadía del paciente en IMAR y las normas de internación.
+      Algunos temas que encontrarás en ésta herramienta son: 
+
+      RESUMEN – INFORMACIÓN GENERAL PARA LA ESTADÍA DEL PACIENTE EN IMAR
+    Este documento detalla todo lo que un paciente o familiar necesita saber al momento de internarse en IMAR, incluyendo condiciones de ingreso, servicios, normas, derechos, costos y funcionamiento interno. Es una guía integral sobre la experiencia completa durante la estadía.
+
+     todas las normas, derechos, deberes y protocolos para pacientes y familiares en el contexto de una internación en la Unidad de Terapia Intensiva de IMAR. Sirve como guía de referencia para consultas específicas relacionadas con:
+
+    TEMAS PRINCIPALES QUE CUBRE
+    Requisitos de ingreso
+    Documentación solicitada, trámites de admisión y asignación de habitaciones.
+
+    Servicios de pensión
+    Comidas, limpieza, enfermería 24 hs, médicos de guardia, traslados internos, habitación compartida o privada.
+
+    Cobertura de obras sociales
+    Qué servicios están incluidos y cómo se informan los adicionales no cubiertos.
+
+    Costos y módulos de atención
+    Tipos de pacientes (por complejidad), servicios adicionales, opciones de pago, tarifas diferenciadas.
+
+    Normas institucionales
+    Conducta, visitas, uso de celulares, ingreso de alimentos, horarios y reglas de convivencia.
+
+    Terapias y rehabilitación
+    Tipos de tratamiento (físico, ocupacional, respiratorio, fonoaudiológico, hidroterapia), horarios y objetivos.
+
+    Habitaciones y equipamiento
+    Detalles técnicos, confort y seguridad en habitaciones comunes y privadas.
+
+    Oficinas de atención y contacto
+    Atención al cliente, administración, hotelería y sus funciones.
+
+    Privacidad, derechos y obligaciones
+    Derechos del paciente, uso de información médica, requisitos para solicitar historia clínica.
+
+    Proceso médico y alta
+    Evaluación al ingreso, revisiones periódicas, informes médicos, reunión al alta, derivaciones externas.
+
+    Servicios diferenciales
+    Laboratorio, terapia intensiva, radiología, odontología, estudios especiales, seguridad avanzada, comunicación asistiva.
+
+    CUÁNDO DEBE USAR ESTE DOCUMENTO EL AGENTE
+    Este archivo debe consultarse cuando el usuario pregunte sobre:
+
+    Qué debe traer el paciente para internarse.
+
+    Qué incluye la estadía o qué servicios están disponibles.
+
+    Costos adicionales o diferencias entre módulos o habitaciones.
+
+    Cómo funciona la cobertura con obra social.
+
+    Políticas de visitas, convivencia o normas internas.
+
+    Reglas para ingreso de alimentos, objetos personales o electrónicos.
+
+    Qué terapias se ofrecen y cómo se organizan.
+
+    Cómo se pide la historia clínica o certificados médicos.
+
+    Qué derechos y deberes tiene el paciente.
+
+    Cómo es el proceso de alta y seguimiento.
+
+    Contacto con oficinas (atención al cliente, hotelería, administración).
+
+
+    ### HERRAMIENTA:
+    - "obtener_informacion_paciente":  Esta herramienta se utiliza para recopilar información necesaria para el proceso de interncaión del paciente, es información que se va a utilizar para, en primer lugar, cargar en el sistema de IMAR y luego para poder iniciar el proceso de internación. (es no debes decirselo al usuario). Si el usuario no te brinda la información necesaria para poder iniciar el proceso de internación, debes pedirle quees necesario para mejorar el proceso y el servicio.
+    Ésta herramienta recopila la siguiente información:
+
+    {
+      Full_name:  // Nombre completo del contacto que está gestionando la conversación, (OBLIGATORIO)
+      Email: // Email del contacto que está gestionando la conversación, (OBLIGATORIO)
+      Nombre_y_Apellido_paciente:  // Nombre del paciente, solo nombre (OBLIGATORIO)
+      Apellido_paciente:  // Apellido del paciente (OBLIGATORIO)
+      Tipo_de_posible_cliente:  //"FAMILIAR RESPONSABLE , CONTACTO INSTITUCIONAL , PACIENTE" (OBLIGATORIO)
+      Obra_social: // obra social del paciente, (OBLIGATORIO)
+      descripcion: // consulta del paciente,
+      dni: // dni del paciente,
+      historia_clinica: // historia clinica del paciente,
+      foto_carnet: // foto del carnet de la obra social del paciente,
+      foto_dni: // foto del dni del paciente,
+  }
+
+
+   ### HERRAMIENTA:
+   - "verificar_obras_sociales": Esta herramienta se utiliza para verificar si la obra social del paciente es una de las obras sociales con las cuales trabaja IMAR. Si el usuario te brinda la obra social del paciente, haz la verificación.
+
+
+
+      ### HISTORIAL DE CONVERSACIÓN:
+      ${conversation}
+
+      --------
+
+      ### DATOS DEL PACIENTE RECOPILADOS HASTA AHORA:
+      - Nombre del paciente: ${state.info_paciente?.nombre_paciente}
+      - Apellido del paciente: ${state.info_paciente?.apellido_paciente}
+      - DNI del paciente: ${state.info_paciente?.dni}
+      - Nombre completo del familiar que consulta: ${state.info_paciente?.full_name}
+      - Email del familiar que consulta: ${state.info_paciente?.email}
+      - Teléfono del familiar que consulta: ${mobile}
+      - Obra social del paciente: ${state.info_paciente?.obra_social}
+      - Historia clínica del paciente: ${state.info_paciente?.historia_clinica}
+      - Foto del carnet de la obra social del paciente: ${state.info_paciente?.foto_carnet}
+      - Foto del DNI del paciente: ${state.info_paciente?.foto_dni}
+      - Tipo de consulta del paciente: INTERNACION
+      - Consulta del paciente: ${state.info_paciente?.descripcion}
+      - Tiene convenio con IMAR: ${state.tiene_convenio}
+
+      ### IMPORTANTE:
+      - Los datos obligatorios que debes recopilar de la conversación para utilizar la herramienta de "obtener_informacion_paciente" y poder iniciar el proceso de internación son:
+
+      {
+        Full_name:  // Nombre completo del contacto que está gestionando la conversación,
+        Email: // Email del contacto que está gestionando la conversación,
+        Nombre_y_Apellido_paciente:  // Nombre del paciente, solo nombre
+        Apellido_paciente:  // Apellido del paciente
+        Tipo_de_posible_cliente:  //"FAMILIAR RESPONSABLE , CONTACTO INSTITUCIONAL , PACIENTE"
+        Obra_social: // obra social del paciente
+      },
 
       ### INFORMACIÓN SOBRE LA ACTUALIDAD:
-      - El dia y hora de hoy es ${new Date().toLocaleDateString('es-AR', {
-        timeZone: 'America/Argentina/Buenos_Aires'
+      - El dia y hora de hoy es ${new Date().toLocaleDateString("es-AR", {
+        timeZone: "America/Argentina/Buenos_Aires",
       })}
 
     
@@ -185,241 +385,108 @@ async function callModel(state: typeof subgraphAnnotation.State) {
 
   // We return a list, because this will get added to the existing list
   console.log("NODO AGENTE: ");
-  
+  console.log(messages);
+
   return { messages: [response] };
 }
 
-const routeStart = (state: typeof subgraphAnnotation.State): "extraction" |  "agent"=> {
-  const {is_new_patient} = state;
-  
-  console.log("is new paciente: ", isNew);
-  
-  if(isNew){
-    console.log("Deriva a extraction desde routestart");
+// TODO: VALIDAR QUE SIEMPRE HAYA UN MENSAJE DE HERRAMIENTA
+const toolNodo = async (state: typeof subgraphAnnotation.State) => {
+  const { messages, info_paciente } = state;
+  const lastMessage = messages.at(-1) as AIMessage;
+  console.log("tool nodo:" + lastMessage);
+
+  if (!lastMessage.tool_calls)
+    throw new Error("No hay una llamada a la herramienta");
+  if(lastMessage.tool_calls.length > 0){
+  const toolsCalls = lastMessage.tool_calls.map(async (tool_call) => {
+    if(tool_call.name === "obtener_informacion_paciente") {
+      const tool_call_args = tool_call.args as InfoPaciente;
+      console.log("tool_call_args: ", tool_call_args);
+      return await obtener_informacion_paciente.invoke(tool_call_args);
+    }else if(tool_call.name === "verificar_obras_sociales") {
+      const tool_call_args = tool_call.args as {nombre_obra_social: string};
+      console.log("tool_call_args: ", tool_call_args);
+      return await obras_sociales_tool.invoke(tool_call_args);
+    }else if(tool_call.name === "informacion_general_estadia_paciente") {
+      const tool_call_args = tool_call.args as {input: string};
+      console.log("tool_call_args: ", tool_call_args);
+      return await retrieverToolInfoEstadiaPaciente.invoke(tool_call_args.input);
+    }else if(tool_call.name === "informacion_normas_internacion_2019") {
+      const tool_call_args = tool_call.args as {input: string};
+      console.log("tool_call_args: ", tool_call_args);
+      // return await retrieverToolNormasDeInternacion.invoke(tool_call_args.input);
+    }
     
-    return "extraction"
-  }else{
-    console.log("Deriva a agent desde routestart");
-
-    return "agent"
+  })
+  console.log("tool calls map: ", toolsCalls);
   }
-}
-
-const extractInfo = async (state: typeof subgraphAnnotation.State, config : LangGraphRunnableConfig) => {
-  const {messages} = state;
-  const cel_number = config.configurable?.thread_id;
-  console.log("ExtractInfo: ");
   
-  const schema = z.object({
-    Full_Name: z
-      .string()
-      .describe(
-        "Si es un familiar, su nombre completo ya que va a ser el nombre del contacto para el paciente",
-      ),
-    Email: z
-      .string()
-      .optional()
-      .describe("El mail de la persona que se está contactando"),
-      Nombre_y_Apellido_paciente: z
-      .string()
-      
-      .describe("The end date of the trip. Should be in YYYY-MM-DD format"),
-      Tipo_de_tratamiento: z
-      .enum(["Tto. ambulatorio" , "Internación", "Consultorio externo"])
-      .describe(
-        "El tipo de tratamiento que se está solicitando, si es ambulatorio o internación, esto aplica si es un ingreso nuevo",
-      ),
-      Last_Name: z.string().describe("Apellido del paciente, si él que está hablando es un familiar pregunarle por el apellido del paciente"),
-     Tipo_de_posible_cliente: z
-      .enum(["Paciente", "Familiar responsable", "Contacto institucional"]).describe("Es el tipo de cliente que se está contactando, detectar si es un paciente o un familiar responsable, o un contacto institucional como de otra isntitucion o un medico que consulta por un paciente"),
-      Obra_social: z
-      .string().describe("La obra social de la persona que va a recibir el tratamiento o la internación"),
-      Description: z
-      .string().describe("Descripción de la consulta, un resumen de la consulta, extraer la más importante y el motivo por el cual se contacta"),
-  });
 
-  const modelExtraction = new ChatOpenAI({ model: "gpt-4o", temperature: 0 , apiKey:OPENAI_API_KEY_IMAR }).bindTools([
-    {
-      name: "extraer_info_primer_consulta",
-      description: "Una herramienta para extraer información de la conversación que se está iniciando, para identificar el tipo de persoona que se está contactando y el motivo de la consulta.",
-      schema: schema,
-    },
-  ]).withConfig({tags: ["nostream"]});
+  const toolCall = lastMessage.tool_calls[0];
+  console.log("llamada a la herramienta: ", toolCall);
 
-  const prompt = `Eres un asistente de IA para gestionar consultas de IMAR.
-  Debes ir guiando de manera natural al usuario para que te brinde la información necesaria para poder ayudarlo.
-  En este caso, el usuario es un paciente o familiar que está contactando a IMAR para solicitar un tratamiento o una internación.
-  El objetivo es extraer la información necesaria para poder ayudarlo a gestionar su consulta.
+  // const tool_call_id = toolCall.id as string;
+  const tool_call_name = toolCall.name as string;
+  const tool_call_args = toolCall.args as InfoPaciente & {input: string} & {nombre_obra_social: string};
+  if (tool_call_name === "informacion_general_estadia_paciente") {
+    console.log(tool_call_args);
+    const input = tool_call_args.input as string;
+    const reponse = await retrieverToolInfoEstadiaPaciente.invoke(input);
+    return { messages: [reponse] };
+  } else if (tool_call_name === "informacion_normas_internacion_2019") {
+    console.log(tool_call_args);
+    const input = tool_call_args.input as string;
+    // const reponse = await retrieverToolNormasDeInternacion.invoke(input);
+    // return { messages: [reponse] };
+  }else if (tool_call_name === "obtener_informacion_paciente") {
+   const response =  await obtener_informacion_paciente.invoke(tool_call_args)
+   //  mostrar por consola los datos recopilados por el agente
+   const toolResponse = response.messages[0] as ToolMessage;
+   const infoPaciente = response.infoPaciente as InfoPaciente;
+   // LLamar a la funcion post_lead
+    const responseLoadLead = await load_lead({lead:infoPaciente});
+   
 
-         Primero que nada presentate y saluda amablemente, di quien eres y que vas a ayudarlo/a a gestionar su consulta.
-
-          ### LISTADO DE OBRAS SOCIALES:
-
-          ${JSON.stringify(obras_sociales)}
-
-         La información que debes extraer es la siguiente: 
-          full_name: Nombre completo de la persona que se está contactando (si es un familiar, su nombre completo ya que va a ser el nombre del contacto para el paciente).
-          email: El mail de la persona que se está contactando.
-          obra_social: La obra social de la persona que va a recibir el tratamiento o la internación.
-          tipo_de_tratamiento: El tipo de tratamiento que se está solicitando, si es ambulatorio, internación o consultorio externo, esto aplica si es un ingreso nuevo.
-          nombre_y_apellido_paciente: Nombre y apellido del paciente que va a recibir el tratamiento o la internación.
-
-          1. Usa exclusivamente el historial de la conversación para extraer estos campos.
-          2. No adivines ni inventes información.
-          3. Email, Obra_social y Tipo_de_tratamiento , full_name, Last_name , son obligatorios:
-            - Si falta uno de ellos, y el usuario te hace un preguna sobre otro tema entonces responde a la pregunta de manera natural y luego vuelve a preguntar por el dato que falta.
-          4. el campo (Nombre_y_Apellido_paciente) son opcionales; si no se menciona, déjalo en blanco y sigue.
-
-          ### REGLA ESTRICTA:
-          - No brindes ninguna información por fuera del contexto de esta conversación, si alguna pregunta no la sabes di que en un momento luego de recopilar la información vas a poder ayudarlo.
-          - No respondas a preguntas que no tengan que ver con la consulta del paciente o familiar.
-          - No respondas sobre médicos, ni horarios de atención, ni información general para la estadía del paciente en IMAR.
-          - No respondas sobre información de la web, ni de la institución.
-          - No respondas sobre obra sociales ni coberturas.
-          - Conversa amablemente, responde a las preguntas que puedas y recuerda que el objetivo es ayudar al paciente o familiar a gestionar su consulta primero que nada recopilando información.
-
-          ### REGLA IMPORTANTE EN CASO DE TENER QUE DERIVAR A UN HUMANO LA CONSULTA:
-          - En el caso no que no tengas información oara responder a la consulta del paciente o familiar, entonces debes decirle que en este momento no puedes ayudarlo/a con esa consulta, por eso vas a darle un numero al cual comunicarse para una atención aun más personalizada
-          - El numero es 221-45588999
-
-          `
-
-          const humanMessage = `Aqui está la conversación completa hasta ahora:\n${formatMessages(state.messages)}`;
-
-          const response = await modelExtraction.invoke([
-            { role: "system", content: prompt },
-            { role: "human", content: humanMessage },
-          ]);
-
-          console.log("Response: ", response);  
-          
-        
-          const toolCall = response.tool_calls?.[0];
-          console.log("ToolCall: ", toolCall);
-          
-          if (!toolCall) {
-            return {
-              messages: [response],
-            };
-          }
-
-          const extractedDetails = toolCall.args as z.infer<typeof schema>;
-          const { Full_Name, Email, Obra_social, Tipo_de_tratamiento, Last_Name } = extractedDetails;
-          if(!Full_Name || !Email || !Obra_social || !Tipo_de_tratamiento || !Last_Name ){
-            return {
-              messages: [`Sólo me falta algo de información para poder ayudarte, por favor completame los siguientes datos ${!Full_Name ? "nombre completo" : "" } , ${!Email ? "email" : ""} , ${!Obra_social ? "obra social" : ""} , ${!Tipo_de_tratamiento ? "tipo de tratamiento" : ""} , ${!Last_Name ? "apellido del paciente" : ""}` ]
-            };
-          }
-
-
-          const infoLead = {
-            ...extractedDetails,
-            Phone: cel_number,
-          }
-
-
-          const extractToolResponse = new ToolMessage("Muy bien, con estos datos podemos continuar con la conversación", toolCall?.id as string, 
-            toolCall.name    
-          );
-
-          console.log("ExtractDetails: ", infoLead);
-
-          const resLoadLead = await load_lead({lead: infoLead})
-          if(resLoadLead) {
-            isNew = false
-          } 
-
-          if(Tipo_de_tratamiento === "Consultorio externo"){
-            isConsultrioExterno = true
-          }
-
-          return new Command({
-            // state update
-            update: {
-              messages: [ response , extractToolResponse],
-              consultorio_externo: isConsultrioExterno,
-              isNew_patient: isNew,
-              info_paciente: {
-                full_name: extractedDetails.Full_Name,
-                Last_Name: extractedDetails.Last_Name,
-                email: extractedDetails.Email,
-                obra_social: extractedDetails.Obra_social,
-                tipo_de_tratamiento: extractedDetails.Tipo_de_tratamiento,
-                nombre_y_apellido_paciente: extractedDetails.Nombre_y_Apellido_paciente,
-                phone: cel_number
-              },
-            },
-            // control flow
-            // goto: "myOtherNode",
-          });
-
-         
-
-}
-
-
-function routeAfterExtraction(
-  state: typeof subgraphAnnotation.State
-): "agent" | "__end__" | "consultorio_externo" {
-  console.log("routeAfterExtraction: es nuevo? ", isNew);
-  
-  // Si es nuevo sigue extrayebdo datos
-  if (!isNew) {
-    return "agent";
+    return {info_paciente:infoPaciente,  messages: [toolResponse] };
+  }else if(tool_call_name === "verificar_obras_sociales") {
+    const response = await obras_sociales_tool.invoke(tool_call_args as {nombre_obra_social: string});
+    console.log("response: ", response);
+    return { messages: [ response] };
   }
 
-  // De otra manera va hacia el agente a seguir la consulta
-  return "__end__";
-}
+   throw new Error("No se ha encontrado la herramienta");
+};
 
-
-function checkToolCall(state: typeof subgraphAnnotation.State) {
+const shouldContinue = async (state: typeof subgraphAnnotation.State) => {
   const { messages } = state;
+  const lastMessage = messages.at(-1) as AIMessage;
+  console.log("last message: ", lastMessage);
 
-  console.log("--- checkToolCall ---");
-
-  const lastMessage = messages[messages.length - 1] as AIMessage;
-  // If the LLM makes a tool call, then we route to the "tools" node
-  if (lastMessage?.tool_calls?.length) {
+  if (lastMessage?.tool_calls && lastMessage.tool_calls.length > 0) {
+    console.log("shouldContinue tools: ");
+    
     return "tools";
-  } else {
-    return "__end__";
   }
-  // Otherwise, we stop (reply to the user)
-}
 
-// const consultorio_externo = async (state: typeof subgraphAnnotation.State) => {
-//   const { messages, info_paciente } = state;
-
-//   const conversation = formatMessages(messages);
-
-//   const prompt = `Como asistente de IMAR, debes ayudar al paciente a gestionar su turno con consultorios externos
-//     ésta persona ya viene siendo atendida por un agente, por eso voy a compartirte la conversacion completa hasta ahora:
-//     ${conversation}
-//     La persona que se contacta es ${info_paciente.Full_name} y su obra social es ${info_paciente.obra_social}
-//     Debes resolver las dudas sobre consultorios externos y turnos, si no sabes algo no respondas, sólo responde lo que sabes.
-//     vas a tener a disposiscion una herramienta para verificar si la obra social tiene convenio con IMAR, si no lo tiene entonces vas a tener que ofrecerle una consulta particular.
-//   `
-
-// }
+  return "__end__";
+};
 
 const graph = new StateGraph(subgraphAnnotation);
 
 graph
-
   .addNode("agent", callModel)
-  .addNode("extraction", extractInfo)
-  // .addNode("consultorio_externo", consultorio_externo)
-  .addNode("tools", toolNode)
-  .addConditionalEdges(START, routeStart, ["extraction", "agent"])
-  .addConditionalEdges("extraction", routeAfterExtraction, ["agent", "__end__"])
-  .addConditionalEdges("agent", checkToolCall)
+  .addNode("tools", toolNodo)
+  .addEdge(START, "agent")
+  .addConditionalEdges("agent", shouldContinue)
   .addEdge("tools", "agent")
 
 const checkpointer = new MemorySaver();
 
 // Implementacion agente interfazp personalizada
 export const workflow = graph.compile({ checkpointer });
+
+// const response  = await workflow.invoke({question: "Hola, te escribo para averiguar por una internación"}, {configurable: {thread_id: "137"}});
 
 // Implementacion langgraph studio sin checkpointer
 // export const workflow = graph.compile();

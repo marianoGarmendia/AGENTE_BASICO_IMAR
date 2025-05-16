@@ -7,7 +7,7 @@ import { workflow } from "../graph";
 import { z } from "zod";
 
 export const getInfoEspcialistSchedule = tool(
-  async ({ query, nombre, especialidad }, config) => {
+  async ({ query, nombre, apellido, especialidad }, config) => {
     const state = await workflow.getState({
       configurable: { thread_id: config.configurable.thread_id },
     });
@@ -47,13 +47,31 @@ export const getInfoEspcialistSchedule = tool(
     });
   },
   {
-    name: "getInfoEspcialistSchedule",
+    name: "obtener_informacion_dias_y_espacialidades_medicos",
     description:
       "Ésta funcion se utiliza cuando un usuario consulta por los dias que atiende un médico en particular o quiere saber que médicos hay por especialidad y sus dias de atencion",
     schema: z.object({
       query: z.string().describe("Consulta del paciente"),
-      nombre: z.string().describe("Nombre del médico por el que consulta"),
-      especialidad: z.string().describe("Nombre de la especialidad"),
+      nombre: z.enum([
+        "Gabriela", "Sofia", "Jorgelina", "Juan Ignacio", "Davor", "Nicolas",
+        "Marcelo", "Fernando Esteban", "Gabriela", "Maria", "Pablo", "Nicolas",
+        "Enrique", "Adriana", "Andrea Viviana", "Alexis", "Jorge", "Alejandro", "Miguel",
+        "Carlos", "Luis Felipe", "Vilma", "Claudia", "Antonela", "Victoria", "Monica",
+        "Brenda"
+      ]).describe("Nombre del médico por el que consulta"),
+      apellido: z.enum([
+        "Rocca", "Perez de Vargas", "Beniat", "Villalba", "Luger", "Monsalve",
+        "Micelotta", "Alonso", "Cabrera", "Romero", "Bizzarri", "Eiras", "Brichetti",
+        "Garcia", "Soria", "Sanchez", "Mazzone", "Mazza", "Adam", "Scaffidi",
+        "Mejía Higuita", "Alvarez", "Pieroni", "Cortes", "Aquino", "Arayco", "Traquin"
+      ]).describe("Apellido del médico por el que consulta"),
+      especialidad: z.enum( [
+        "fisiatria", "psiquiatria", "ecografias", "traumatologia", "neurocirugia_y_columna",
+        "neurocirugia_y_dolor", "clinica", "neurologia", "cardiologia_holter_mapa",
+        "Videoendoscopia_de_la_deglución", "urologia", "tratamiento_del_dolor",
+        "psicologia", "ginecologia", "electroencefalograma_polisomnografia", "fonoaudiologia",
+        "nutricionista"
+      ]).describe("Nombre de la especialidad"),
     }),
   }
 );
