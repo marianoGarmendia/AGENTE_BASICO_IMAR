@@ -12,7 +12,7 @@ const ACCESS_TOKEN = process.env.ZOHO_ACCESS_TOKEN || "";
 
 export async function getAccount():Promise<any> {
     try {
-        const response = await  fetch('https://www.zohoapis.com/crm/v2/Accounts',{
+        const response = await  fetch('https://www.zohoapis.com/crm/v2/Accounts?step=FieldsList',{
          method: 'GET',
          headers: {
            Authorization: `Zoho-oauthtoken ${ACCESS_TOKEN}`,

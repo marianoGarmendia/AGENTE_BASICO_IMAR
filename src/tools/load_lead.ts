@@ -11,6 +11,22 @@ import { ZohoLead } from "../types/zoho_types";
 export const load_lead = async ({ lead }: { lead: any }) => {
   console.log("lead", lead);
 
+  const leadMockup =  {
+    descripcion: 'Gestionar la internación de mi tío, Juan Gómez, con obra social OSPE.',
+    telefono: undefined,
+    tipo_de_tratamiento: 'INTERNACION',
+    tipo_de_posible_cliente: 'Familiar responsable',
+    dni: null,
+    foto_carnet: 'foto crnet',
+    foto_dni: 'foto dni',
+    obra_social: 'OSPE',
+    historia_clinica: null,
+    email: 'contacto@test.com',
+    full_name: 'Mariano Garmendia',
+    nombre_paciente: 'Juan',
+    apellido_paciente: 'Gómez'
+  }
+
 
   // TODO: Procesar correctamente las imagenes y los archivos para poder subirlos a la api de zoho, en un campo de la persona   
   const bodyZohoLead = {
@@ -21,7 +37,7 @@ export const load_lead = async ({ lead }: { lead: any }) => {
     Apellido_paciente: lead.apellido_paciente, // Apellido del paciente
     Tipo_de_posible_cliente: lead.tipo_de_posible_cliente, //"FAMILIAR RESPONSABLE , CONTACTO INSTITUCIONAL , PACIENTE"
     Mobile: lead.telefono,
-    Obra_social: lead.obra_social, // id correspondiente
+    Obra_social: "zcrm_4725123000001201142", // id correspondiente
     Description: lead.descripcion || "",
     dni: lead.dni,
     historia_clinica: lead.historia_clinica,
@@ -44,6 +60,8 @@ export const load_lead = async ({ lead }: { lead: any }) => {
     );
     if (!response.ok) {
       console.error("Error en la respuesta de la API:");
+      console.log(response);
+      
       return { error: "Error en la respuesta de la API" };
     }
 

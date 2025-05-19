@@ -5,6 +5,8 @@ import {
   type BaseMessageLike,
 } from "@langchain/core/messages";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
+import { Document } from "langchain/document";
+
 
 import { z } from "zod";
 import { llm } from "./llm/llm";
@@ -44,10 +46,17 @@ import { RunnableLambda, Runnable } from "@langchain/core/runnables";
 // import { load_lead } from "./tools/load_lead";
 import dotenv from "dotenv";
 import { load_lead } from "./tools/load_lead";
+import { tool } from "@langchain/core/tools";
 // import { obras_sociales } from "./utils/obras-sociales";
 // import { especialidades_dias_profesionales } from "./utils/especialidades";
 
 dotenv.config();
+
+interface ToolResponse {
+  messages?: ToolMessage[];
+  infoPaciente?: InfoPaciente;
+}
+
 
 const OPENAI_API_KEY_IMAR = process.env.OPENAI_API_KEY_IMAR || "";
 // process.env.LANGCHAIN_CALLBACKS_BACKGROUND = "true";
@@ -395,15 +404,33 @@ const toolNodo = async (state: typeof subgraphAnnotation.State) => {
   const { messages, info_paciente } = state;
   const lastMessage = messages.at(-1) as AIMessage;
   console.log("tool nodo:" + lastMessage);
+  
 
   if (!lastMessage.tool_calls)
     throw new Error("No hay una llamada a la herramienta");
   if(lastMessage.tool_calls.length > 0){
   const toolsCalls = lastMessage.tool_calls.map(async (tool_call) => {
     if(tool_call.name === "obtener_informacion_paciente") {
-      const tool_call_args = tool_call.args as InfoPaciente;
-      console.log("tool_call_args: ", tool_call_args);
-      return await obtener_informacion_paciente.invoke(tool_call_args);
+      const tool_call_args_info = tool_call.args as InfoPaciente;
+      // console.log("tool_call_args: ", tool_call_args);
+      // return await obtener_informacion_paciente.invoke(tool_call_args);
+
+      const response =  await obtener_informacion_paciente.invoke(tool_call_args_info)
+      //  mostrar por consola los datos recopilados por el agente
+      const toolResponse = response.messages[0] as ToolMessage;
+      const infoPaciente = response.infoPaciente as InfoPaciente;
+      // LLamar a la funcion post_lead
+       const responseLoadLead = await load_lead({lead:infoPaciente});
+       if(responseLoadLead === "success"){
+         console.log("Lead cargado correctamente");
+         console.log(toolResponse);
+         console.log("toolResponse.content: " + toolResponse.content);
+         
+         
+       }
+
+       return {info_paciente:infoPaciente,  messages: [toolResponse] };
+
     }else if(tool_call.name === "verificar_obras_sociales") {
       const tool_call_args = tool_call.args as {nombre_obra_social: string};
       console.log("tool_call_args: ", tool_call_args);
@@ -419,7 +446,74 @@ const toolNodo = async (state: typeof subgraphAnnotation.State) => {
     }
     
   })
-  console.log("tool calls map: ", toolsCalls);
+  
+  const resolvedToolCalls = await Promise.all(toolsCalls) as (ToolMessage | ToolResponse)[];
+  // console.log("tool calls resolved: ", resolvedToolCalls);
+
+  const responsesTool = resolvedToolCalls.flatMap((toolCall) => {
+    // console.log("toolCall: ", toolCall);
+    if (toolCall instanceof ToolMessage) {
+      return [toolCall];
+    } else if (Array.isArray(toolCall?.messages)) {
+      return toolCall.messages;
+     
+    }
+
+    // Caso 3: Array de Documents (resultado de un retriever)
+  if (Array.isArray(toolCall) && toolCall.every(doc => doc instanceof Document)) {
+    const fullText = toolCall.map(doc => doc.pageContent).join("\n---\n");
+    const toolCallId = messages.filter((msg:AIMessage) => {
+      
+        console.log("msg.tool_calls: ", msg.tool_calls);
+        
+        return msg?.tool_calls?.filter((call) => call.name === "informacion_general_estadia_paciente")
+      
+
+    })
+
+    console.log("toolCallId: ", toolCallId);
+
+    const toolResponseAImessage = lastMessage as AIMessage;
+    const toolCallIdMessage = toolResponseAImessage.tool_calls?.filter(call => {
+      return call.name === "informacion_general_estadia_paciente"
+       
+    })
+    
+    let id = ""
+    if(toolCallIdMessage && toolCallIdMessage.length > 0){
+      console.log("toolCallIdMessage: ", toolCallIdMessage);
+      id = toolCallIdMessage[0].id as string;
+    }
+    
+    
+    return [
+      new ToolMessage({
+        content: fullText,
+        name: "informacion_general_estadia_paciente", // ajustá según la tool que lo genera
+        tool_call_id: id // o tomá el id real si lo tenés
+      }),
+    ];
+  }
+
+  // Fallback
+  return [new ToolMessage({
+    content: "Respuesta desconocida o en formato inesperado",
+    name: "unknown",
+    tool_call_id: "unknown",
+  })];
+
+
+
+
+  })
+ 
+  
+  
+  return {
+    messages: [...responsesTool]
+  };
+
+
   }
   
 
@@ -446,6 +540,14 @@ const toolNodo = async (state: typeof subgraphAnnotation.State) => {
    const infoPaciente = response.infoPaciente as InfoPaciente;
    // LLamar a la funcion post_lead
     const responseLoadLead = await load_lead({lead:infoPaciente});
+    if(responseLoadLead === "success"){
+      console.log("Lead cargado correctamente");
+      console.log(toolResponse);
+      console.log("toolResponse.content: " + toolResponse.content);
+      
+      
+    }
+
    
 
     return {info_paciente:infoPaciente,  messages: [toolResponse] };
