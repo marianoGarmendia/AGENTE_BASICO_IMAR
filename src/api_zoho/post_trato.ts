@@ -3,7 +3,7 @@ import type { Request, Response } from "express";
 import { type ZohoLead } from "../types/zoho_types.js";
 dotenv.config();
 
-const ZOHO_ACCESS_TOKEN = process.env.ZOHO_ACCESS_TOKEN || "";
+const ZOHO_ACCESS_TOKEN = process.env.ZOHO_ACCESS_TOKEN_SANDBOX|| "";
 let url = "https://www.zohoapis.com/crm/v2/Deals/upsert";
 
 /**

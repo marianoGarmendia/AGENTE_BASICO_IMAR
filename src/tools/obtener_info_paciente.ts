@@ -1,5 +1,5 @@
 import { tool } from "@langchain/core/tools";
-import { Command } from "@langchain/langgraph";
+import {buscarIdObraSocialImar} from "../utils/get_id_obra_social";
 import { info_paciente_schema, InfoPaciente } from "../types/types_pacients";
 import { ToolMessage } from "@langchain/core/messages";
 import { workflow } from "../graph";
@@ -46,6 +46,11 @@ export const obtener_informacion_paciente = tool(
       );
     }
 
+    const responseObraSocialMap = await buscarIdObraSocialImar(obra_social);
+
+    const {id} = responseObraSocialMap;
+
+
     const infoPaciente = {
       descripcion,
       telefono: mobile,
@@ -55,6 +60,7 @@ export const obtener_informacion_paciente = tool(
       foto_carnet,
       foto_dni,
       obra_social,
+      id_obra_social: id || "4725123000001549012", // 
       historia_clinica,
       email,
       full_name,

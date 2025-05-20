@@ -23,6 +23,7 @@ export const info_paciente_schema = z.object({
     .nullable(),
  
   obra_social: z.string().describe("Obra social del paciente").nullable(),
+  
   historia_clinica: z
     .string()
     .describe(
@@ -46,7 +47,7 @@ export const info_paciente_schema = z.object({
   descripcion: z
     .string() 
     .describe(
-      "Desripcion de la consulta del usuario, es decir la persona que esta gestionando la conversación, una descripcion breve sobre el motivo de la consulta"
+      "consulta del paciente que obtenes de la conversación, un resumen que le facilite al personal administrativo de IMAR la carga de la internación, cuando se contacte con el paciente"
     ),
 });
 

@@ -32,6 +32,7 @@ import { StringOutputParser } from "@langchain/core/output_parsers";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { InfoPaciente } from "./types/types_pacients";
 import { getInfoEspcialistSchedule } from "./tools/info_espcialist_schedule";
+import {load_contact} from "./tools/load_contact";
 
 import {
   retrieverToolInfoEstadiaPaciente,
@@ -94,6 +95,7 @@ const stateAnnotation = MessagesAnnotation;
 const subgraphAnnotation = Annotation.Root({
   ...stateAnnotation.spec,
   info_paciente: Annotation<InfoPaciente>,
+  id_obra_social: Annotation<string>,
   tiene_convenio: Annotation<boolean>,
   mobile: Annotation<string>,
 });
@@ -333,7 +335,7 @@ async function callModel(state: typeof subgraphAnnotation.State) {
       Apellido_paciente:  // Apellido del paciente (OBLIGATORIO)
       Tipo_de_posible_cliente:  //"FAMILIAR RESPONSABLE , CONTACTO INSTITUCIONAL , PACIENTE" (OBLIGATORIO)
       Obra_social: // obra social del paciente, (OBLIGATORIO)
-      descripcion: // consulta del paciente,
+      descripcion: // consulta del paciente que obtenes de la conversación, un resumen que le facilite al personal administrativo de IMAR la carga de la internación, cuando se contacte con el paciente. (OBLIGATORIO)
       dni: // dni del paciente,
       historia_clinica: // historia clinica del paciente,
       foto_carnet: // foto del carnet de la obra social del paciente,
@@ -370,13 +372,15 @@ async function callModel(state: typeof subgraphAnnotation.State) {
       - Los datos obligatorios que debes recopilar de la conversación para utilizar la herramienta de "obtener_informacion_paciente" y poder iniciar el proceso de internación son:
 
       {
-        Full_name:  // Nombre completo del contacto que está gestionando la conversación,
-        Email: // Email del contacto que está gestionando la conversación,
-        Nombre_y_Apellido_paciente:  // Nombre del paciente, solo nombre
-        Apellido_paciente:  // Apellido del paciente
-        Tipo_de_posible_cliente:  //"FAMILIAR RESPONSABLE , CONTACTO INSTITUCIONAL , PACIENTE"
-        Obra_social: // obra social del paciente
+        Full_name:  // Nombre completo del contacto que está gestionando la conversación, (OBLIGATORIO)
+        Email: // Email del contacto que está gestionando la conversación, (OBLIGATORIO)
+        Nombre_y_Apellido_paciente:  // Nombre del paciente, solo nombre (OBLIGATORIO)
+        Apellido_paciente:  // Apellido del paciente (OBLIGATORIO)
+        Tipo_de_posible_cliente:  //"FAMILIAR RESPONSABLE , CONTACTO INSTITUCIONAL , PACIENTE" (OBLIGATORIO)
+        Obra_social: // obra social del paciente (OBLIGATORIO)
       },
+
+      NOTA: 
 
       ### INFORMACIÓN SOBRE LA ACTUALIDAD:
       - El dia y hora de hoy es ${new Date().toLocaleDateString("es-AR", {
@@ -420,13 +424,13 @@ const toolNodo = async (state: typeof subgraphAnnotation.State) => {
       const toolResponse = response.messages[0] as ToolMessage;
       const infoPaciente = response.infoPaciente as InfoPaciente;
       // LLamar a la funcion post_lead
-       const responseLoadLead = await load_lead({lead:infoPaciente});
-       if(responseLoadLead === "success"){
+      //  const responseLoadLead = await load_lead({lead:infoPaciente});
+       const responseContact = await load_contact({contact: infoPaciente});
+
+       if(responseContact === "success"){
          console.log("Lead cargado correctamente");
          console.log(toolResponse);
          console.log("toolResponse.content: " + toolResponse.content);
-         
-         
        }
 
        return {info_paciente:infoPaciente,  messages: [toolResponse] };

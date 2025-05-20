@@ -8,7 +8,7 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 
-const ACCESS_TOKEN = process.env.ZOHO_ACCESS_TOKEN || "";
+const ACCESS_TOKEN = process.env.ZOHO_ACCESS_TOKEN_SANDBOX || "";
 
 export async function getLeads():Promise<any> {
     try {
