@@ -6,8 +6,7 @@ import {
 } from "@langchain/core/messages";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
 import { Document } from "langchain/document";
-
-
+import { InfoPacienteTrato } from "./types/type_trato";
 import { z } from "zod";
 import { llm } from "./llm/llm";
 import { ChatOpenAI } from "@langchain/openai";
@@ -32,21 +31,19 @@ import { StringOutputParser } from "@langchain/core/output_parsers";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { InfoPaciente } from "./types/types_pacients";
 import { getInfoEspcialistSchedule } from "./tools/info_espcialist_schedule";
-import {load_contact} from "./tools/load_contact";
+import { load_contact } from "./tools/load_contact";
 
-import {
-  retrieverToolInfoEstadiaPaciente,
- 
-} from "./tools/instructivos_internacion";
+import { retrieverToolInfoEstadiaPaciente } from "./tools/instructivos_internacion";
 import { obtener_informacion_paciente } from "./tools/obtener_info_paciente";
 import { obras_sociales_tool } from "./tools/obras_sociales";
-import {toolsMap} from "./utils/find-tool-call";
+import { toolsMap } from "./utils/find-tool-call";
 import * as constants from "./utils/constants";
 import { RunnableLambda, Runnable } from "@langchain/core/runnables";
 
 // import { load_lead } from "./tools/load_lead";
 import dotenv from "dotenv";
 import { load_lead } from "./tools/load_lead";
+import { load_trato } from "./tools/load_trato";
 import { tool } from "@langchain/core/tools";
 // import { obras_sociales } from "./utils/obras-sociales";
 // import { especialidades_dias_profesionales } from "./utils/especialidades";
@@ -56,8 +53,9 @@ dotenv.config();
 interface ToolResponse {
   messages?: ToolMessage[];
   infoPaciente?: InfoPaciente;
+  isLoad_contact?: boolean;
+  isLoad_trato?: boolean;
 }
-
 
 const OPENAI_API_KEY_IMAR = process.env.OPENAI_API_KEY_IMAR || "";
 // process.env.LANGCHAIN_CALLBACKS_BACKGROUND = "true";
@@ -80,7 +78,6 @@ const tavilySearch = new TavilySearch({
 const tools = [
   obtener_informacion_paciente,
   obras_sociales_tool,
- 
   retrieverToolInfoEstadiaPaciente,
 ];
 
@@ -97,6 +94,9 @@ const subgraphAnnotation = Annotation.Root({
   info_paciente: Annotation<InfoPaciente>,
   id_obra_social: Annotation<string>,
   tiene_convenio: Annotation<boolean>,
+  isLoad_trato: Annotation<boolean>,
+  isLoad_contact: Annotation<boolean>,
+  isReadyToLoad: Annotation<boolean>,
   mobile: Annotation<string>,
 });
 
@@ -109,18 +109,19 @@ const toolNode = new ToolNode(tools);
 // const toolNode = new ToolNode(tools);
 
 async function callModel(state: typeof subgraphAnnotation.State) {
-  const { messages , info_paciente, mobile } = state;
+  const { messages, info_paciente, mobile, isLoad_trato, isReadyToLoad } =
+    state;
   const conversation = formatMessages(messages);
   // BassemessageField parameters, which are passed to the model
 
-  console.log("Desde call model muestrto info_paciente: ", info_paciente);
-  
+  console.log("Listo para cargar a zoho CRM: ", isReadyToLoad);
+  console.log("Estado de carga en el CRM: ", info_paciente);
 
   const systemsMessage = new SystemMessage(
     `
-      Eres un agente humano que trabaja en el área de internaciones de IMAR (Instituto Médico Argentino de Rehabilitación ). Atiendes a través de WhatsApp de forma cálida, clara, profesional y empática. Tu rol principal es brindar información y gestionar internaciones nuevas o resolver dudas sobre internaciones activas. La mayoría de las personas que te escriben son familiares de pacientes, aunque también pueden contactarte pacientes directamente o médicos derivantes.
+      Eres un agente humano que trabaja en el área de internaciones de IMAR (Instituto Médico Argentino de Rehabilitación ). Atiendes a través de WhatsApp de forma cálida, clara, profesional y empática. Tu rol principal es brindar información y gestionar internaciones nuevas o resolver dudas sobre internaciones activas. La mayoría de las personas que te escriben son familiares de pacientes, aunque también pueden contactarte pacientes directamente , médicos derivantes o  también intituciones como obras sociales.
 
-      ### IMPORTANTE ESTRICTO: 
+      ### IMPORTANTE Y ESTRICTO: 
 
       *Eres un agente únicamente para el proceso y la gestión de internaciones, no gestionas tratamientos ambulatorios ni consultorios externos.*
       *Si alguien te consulta por un tratamiento ambulatorio o consultorio externo, debes derivar a la línea de atención al cliente de IMAR: 011 15 5555 5555.*
@@ -135,7 +136,7 @@ async function callModel(state: typeof subgraphAnnotation.State) {
 
       Guiar la conversación con empatía y claridad: Detectar si la persona necesita información urgente, contención emocional o simplemente datos administrativos.
 
-      Detectar el perfil del interlocutor: Familiar, paciente o médico. Adaptar tu lenguaje y nivel de detalle según el perfil.
+      Detectar el perfil del interlocutor: Familiar, paciente, médico o representante de una obra social. Adaptar tu lenguaje y nivel de detalle según el perfil.
 
       ### Reglas de comportamiento:
       Sé amable, cálido y humano. Usa un lenguaje cercano pero profesional.
@@ -165,12 +166,14 @@ async function callModel(state: typeof subgraphAnnotation.State) {
 
       Médicos derivantes que desean gestionar una internación.
 
+      Representantes de obras sociales o instituciones que buscan información sobre internaciones.
+
     
 
 
       - Si la internación es nueva:
       - Nueva internación → Tu rol es proactivo y persuasivo, actuando como un "vendedor amable" de la internación. Resolvés dudas, pedís información concreta, mostrás disponibilidad y ofrecés ayuda ágil para avanzar. Transmitís confianza y contención.
-      ▸ Ej.: “Perfecto, te acompaño con todo lo que necesites para internarlo. ¿Tenés ya indicación médica o querés que te cuente cómo sería el ingreso?”
+      ▸ Ej.: “Perfecto, te acompaño con todo lo que necesites para el proceso de internación. Describime tu consulta asi puedo ayudarte mejor”
 
 
       Internaciones activas → Brindás información general o gestionás consultas sobre visitas, responsables, turnos o contacto con profesionales. Si no tenés acceso directo a datos, lo decís con claridad y ofrecés derivar.
@@ -179,6 +182,18 @@ async function callModel(state: typeof subgraphAnnotation.State) {
       ### SALUDO INICIAL:
       - El saludo inicial va a ser estructurado dependiendo de la consulta del usuario.
       - Si el usuario solo consulta con un "Hola" o "Hola, buenas tardes" o "Hola, buen día" o "Hola, buenas noches", el saludo inicial va a ser: "Hola! 😊 Éste es el número para internaciones, decime en que te ayudo?"
+
+      ### SECUENCIA DE RESPUESTAS SUGERIDAS O RESPUESTAS PARA DARLE AL USUARIO QUE AYUDEN A LA GESTIÓN:
+      ** TEN EN CUENTA QUE DEBES PREGUNTAR DE MANERA SENCILLA, DE A UNA PREGUNTA POR VEZ, PARA QUE EL USUARIO NO SE SIENTA ABRUMADO Y PUEDA RESPONDERTE CON MÁS FACILIDAD. **
+      ** Obtener el informe médcio es importante para la gestión **
+
+      internaciones nuevas:
+      - ¿El paciente se encuentra internado o en el domiclio?
+      - Podrias brindarme la hisotria clinica del paciente?
+      - Si se encuentra internado, tendrias el informe médico del estado actual del paciente, la epicrisis, o historia clinica?
+      - ¿El paciente tiene obra social? Si es así, ¿cuál es?
+     
+      
 
       ### REGLAS PARA LA CONVERSACIÓN:
       - Debes identificar según los mensajes o la consulta del usuario que este es un paciente nuevo o un paciente que ya está internado.
@@ -342,27 +357,31 @@ async function callModel(state: typeof subgraphAnnotation.State) {
       foto_dni: // foto del dni del paciente,
   }
 
+  **Los datos como "Historia clinica", "foto del carnet de la obra social", "foto del dni" son opcionales, pero si el usuario te los brinda, debes recopilarlos y guardarlos para el proceso de internación. Si el usuario no te los brinda, debes continuar igual el proceso de carga de datos y gestión de la internación y le dices que luego se los van a solicitar**
+
 
    ### HERRAMIENTA:
    - "verificar_obras_sociales": Esta herramienta se utiliza para verificar si la obra social del paciente es una de las obras sociales con las cuales trabaja IMAR. Si el usuario te brinda la obra social del paciente, haz la verificación.
 
 
 
-      ### HISTORIAL DE CONVERSACIÓN:
-      ${conversation}
-
+    
       --------
 
       ### DATOS DEL PACIENTE RECOPILADOS HASTA AHORA:
       - Nombre del paciente: ${state.info_paciente?.nombre_paciente}
       - Apellido del paciente: ${state.info_paciente?.apellido_paciente}
       - DNI del paciente: ${state.info_paciente?.dni}
-      - Nombre completo del familiar que consulta: ${state.info_paciente?.full_name}
+      - Nombre completo del familiar que consulta: ${
+        state.info_paciente?.full_name
+      }
       - Email del familiar que consulta: ${state.info_paciente?.email}
       - Teléfono del familiar que consulta: ${mobile}
       - Obra social del paciente: ${state.info_paciente?.obra_social}
       - Historia clínica del paciente: ${state.info_paciente?.historia_clinica}
-      - Foto del carnet de la obra social del paciente: ${state.info_paciente?.foto_carnet}
+      - Foto del carnet de la obra social del paciente: ${
+        state.info_paciente?.foto_carnet
+      }
       - Foto del DNI del paciente: ${state.info_paciente?.foto_dni}
       - Tipo de consulta del paciente: INTERNACION
       - Consulta del paciente: ${state.info_paciente?.descripcion}
@@ -387,7 +406,19 @@ async function callModel(state: typeof subgraphAnnotation.State) {
         timeZone: "America/Argentina/Buenos_Aires",
       })}
 
-    
+      ### IMPORTANTE:
+      - SIGUE LA CONVERSACIÓN DEL USUARIO QUE VOY A COMPARTIRTE A CONTINUACIÓN, DONDE EN UN DETERMINADO MOMENTO, CUANDO EL USUSARIO YA TE PROPORCIONÓ SUFICIENTE INFORMACIÓN, DEBES HACER UNA LLAMADA A LA HERRAMIENTA "obtener_informacion_paciente" PARA OBTENER LA INFORMACIÓN DEL PACIENTE Y PODER INICIAR EL PROCESO DE INTERNACIÓN. EN ESE MOMENTO SE HARÁ UNA CARGA EN EL CRM DE IMAR Y SE CREARÁ UN NUEVO PACIENTE EN EL CRM DE IMAR.
+      POR ESE MOTIVO A CONTINUACIÓN TE COMPARTO EL ESTADO DE CARGA, SEGÚN ESE ESTADO DE CARGA EN EL CRM DEBES HACER LO SIGUIENTE:
+
+      SI YA ESTÁ CARGADO EL PACIENTE EN EL CRM DEBES DECIRLE AL USUSARIO QUE YA ESTÁ EN PROCESO LA GESTIÓN Y QUE EN BREVE SE COMUNICARAN DE MANERA PERSONALIZADA PARA AVANZAR CON EL PROCESO DE INTERNACIÓN.
+
+      ESTADO DE CARGA EN EL CRM DE IMAR: ${isLoad_trato}
+
+      ------------------------
+
+      CONVERSACION HASTA EL MOMENTO:
+      
+      - ${conversation}
    
 
     `
@@ -403,166 +434,220 @@ async function callModel(state: typeof subgraphAnnotation.State) {
   return { messages: [response] };
 }
 
-// TODO: VALIDAR QUE SIEMPRE HAYA UN MENSAJE DE HERRAMIENTA
-const toolNodo = async (state: typeof subgraphAnnotation.State) => {
-  const { messages, info_paciente } = state;
-  const lastMessage = messages.at(-1) as AIMessage;
-  console.log("tool nodo:" + lastMessage);
-  
+// "tool_calls": [
+//   {
+//     "name": "informacion_general_estadia_paciente",
+//     "args": {
+//       "input": "horarios de visitas"
+//     },
+//     "id": "call_DLiklIhw2rQwin7AKzkKrQiV",
+//     "type": "tool_call"
+//   },
+//   {
+//     "name": "verificar_obras_sociales",
+//     "args": {
+//       "nombre_obra_social": "IOMA"
+//     },
+//     "id": "call_Y7Y27fLEVcXVMnCItvJ67jxR",
+//     "type": "tool_call"
+//   }
+// ],
 
-  if (!lastMessage.tool_calls)
-    throw new Error("No hay una llamada a la herramienta");
-  if(lastMessage.tool_calls.length > 0){
-  const toolsCalls = lastMessage.tool_calls.map(async (tool_call) => {
-    if(tool_call.name === "obtener_informacion_paciente") {
-      const tool_call_args_info = tool_call.args as InfoPaciente;
-      // console.log("tool_call_args: ", tool_call_args);
-      // return await obtener_informacion_paciente.invoke(tool_call_args);
+// const toolCustomNode = async (state: typeof subgraphAnnotation.State) => {
+//   const { messages } = state;
+//   const lastMessage = messages.at(-1) as AIMessage;
 
-      const response =  await obtener_informacion_paciente.invoke(tool_call_args_info)
-      //  mostrar por consola los datos recopilados por el agente
-      const toolResponse = response.messages[0] as ToolMessage;
-      const infoPaciente = response.infoPaciente as InfoPaciente;
-      // LLamar a la funcion post_lead
-      //  const responseLoadLead = await load_lead({lead:infoPaciente});
-       const responseContact = await load_contact({contact: infoPaciente});
+//   if (!lastMessage.tool_calls)
+//     throw new Error("No hay una llamada a la herramienta");
 
-       if(responseContact === "success"){
-         console.log("Lead cargado correctamente");
-         console.log(toolResponse);
-         console.log("toolResponse.content: " + toolResponse.content);
-       }
+//   if (lastMessage.tool_calls.length > 0) {
+//     const toolsCalls = lastMessage.tool_calls.map(async (tool_call) => {
+//       if (tool_call.name === "informacion_general_estadia_paciente") {
+//         const response = await retrieverToolInfoEstadiaPaciente.invoke(
+//           tool_call.args.input
+//         );
+//         return { messages: [response] };
+//       } else if (tool_call.name === "verificar_obras_sociales") {
+//         const response = await obras_sociales_tool.invoke(
+//           tool_call.args as { nombre_obra_social: string }
+//         );
+//         return { messages: [response] };
+//       } else if (tool_call.name === "obtener_informacion_paciente") {
+//         const response = await obtener_informacion_paciente.invoke(
+//           tool_call.args as InfoPaciente
+//         );
+//         return { messages: [response] };
+//       }
+//     });
 
-       return {info_paciente:infoPaciente,  messages: [toolResponse] };
-
-    }else if(tool_call.name === "verificar_obras_sociales") {
-      const tool_call_args = tool_call.args as {nombre_obra_social: string};
-      console.log("tool_call_args: ", tool_call_args);
-      return await obras_sociales_tool.invoke(tool_call_args);
-    }else if(tool_call.name === "informacion_general_estadia_paciente") {
-      const tool_call_args = tool_call.args as {input: string};
-      console.log("tool_call_args: ", tool_call_args);
-      return await retrieverToolInfoEstadiaPaciente.invoke(tool_call_args.input);
-    }else if(tool_call.name === "informacion_normas_internacion_2019") {
-      const tool_call_args = tool_call.args as {input: string};
-      console.log("tool_call_args: ", tool_call_args);
-      // return await retrieverToolNormasDeInternacion.invoke(tool_call_args.input);
-    }
-    
-  })
-  
-  const resolvedToolCalls = await Promise.all(toolsCalls) as (ToolMessage | ToolResponse)[];
-  // console.log("tool calls resolved: ", resolvedToolCalls);
-
-  const responsesTool = resolvedToolCalls.flatMap((toolCall) => {
-    // console.log("toolCall: ", toolCall);
-    if (toolCall instanceof ToolMessage) {
-      return [toolCall];
-    } else if (Array.isArray(toolCall?.messages)) {
-      return toolCall.messages;
+//     const resolvedTooCalls = (await Promise.all(toolsCalls))  
      
-    }
 
-    // Caso 3: Array de Documents (resultado de un retriever)
-  if (Array.isArray(toolCall) && toolCall.every(doc => doc instanceof Document)) {
-    const fullText = toolCall.map(doc => doc.pageContent).join("\n---\n");
-    const toolCallId = messages.filter((msg:AIMessage) => {
-      
-        console.log("msg.tool_calls: ", msg.tool_calls);
-        
-        return msg?.tool_calls?.filter((call) => call.name === "informacion_general_estadia_paciente")
-      
+//     const resolved = resolvedTooCalls.flatMap((toolCall) => { toolCall.messages });
 
-    })
+//     return { messages: [...resolvedTooCalls[0].messages] };
+//   }
+// };
 
-    console.log("toolCallId: ", toolCallId);
+// TODO: VALIDAR QUE SIEMPRE HAYA UN MENSAJE DE HERRAMIENTA
+// const toolNodo = async (state: typeof subgraphAnnotation.State) => {
+//   const { messages } = state;
+//   const lastMessage = messages.at(-1) as AIMessage;
+//   console.log("tool nodo:" + lastMessage);
 
-    const toolResponseAImessage = lastMessage as AIMessage;
-    const toolCallIdMessage = toolResponseAImessage.tool_calls?.filter(call => {
-      return call.name === "informacion_general_estadia_paciente"
-       
-    })
-    
-    let id = ""
-    if(toolCallIdMessage && toolCallIdMessage.length > 0){
-      console.log("toolCallIdMessage: ", toolCallIdMessage);
-      id = toolCallIdMessage[0].id as string;
-    }
-    
-    
-    return [
-      new ToolMessage({
-        content: fullText,
-        name: "informacion_general_estadia_paciente", // ajustá según la tool que lo genera
-        tool_call_id: id // o tomá el id real si lo tenés
-      }),
-    ];
-  }
+//   if (!lastMessage.tool_calls)
+//     throw new Error("No hay una llamada a la herramienta");
+//   if (lastMessage.tool_calls.length > 0) {
+//     const toolsCalls = lastMessage.tool_calls.map(async (tool_call) => {
+//       if (tool_call.name === "obtener_informacion_paciente") {
+//         const tool_call_args_info = tool_call.args as InfoPaciente;
+//         const response = await obtener_informacion_paciente.invoke(
+//           tool_call_args_info
+//         );
 
-  // Fallback
-  return [new ToolMessage({
-    content: "Respuesta desconocida o en formato inesperado",
-    name: "unknown",
-    tool_call_id: "unknown",
-  })];
+//         const toolResponse = response.messages[0] as ToolMessage;
+//         const infoPaciente = response.infoPaciente as InfoPaciente;
+//         const idContacto = response.id_obra_social as string;
 
+//         const responseContact = await load_contact({ contact: infoPaciente });
+//         const isLoadContact = responseContact !== null
+//         console.log("responseContact: ", responseContact);
 
+//         if(responseContact && "status" in responseContact){
+//         if (responseContact.status == "success") {
+//           console.log("Contact cargado correctamente");
 
+//           const nombreContactoId = responseContact.details.id
+//           const bodyTrato:InfoPacienteTrato = {
+//             Contact_name: nombreContactoId,
+//             Deal_name: infoPaciente.obra_social ,
+//             Account_Name: idContacto,
+//             Tipo_de_oportunidad: "B2C Internación",
+//             Nombre_del_Vendedor: "Andrea Lischinsky",
+//           }
+//           const responseTrato = await load_trato({contact: bodyTrato})
+//           const isLoadTrato = responseTrato !== null
+//           return { info_paciente: infoPaciente,isLoad_contact: isLoadContact,isLoad_trato: isLoadTrato, messages: [toolResponse] };
 
-  })
- 
-  
-  
-  return {
-    messages: [...responsesTool]
-  };
+//         }}
 
+//         return { info_paciente: infoPaciente,isLoad_contact: isLoadContact,isLoad_trato: false, messages: [toolResponse] };
 
-  }
-  
+//       } else if(tool_call.name === "verificar_obras_sociales") {
+//         const tool_call_args = tool_call.args as { nombre_obra_social: string };
+//         console.log("tool_call_args: ", tool_call_args);
+//         return await obras_sociales_tool.invoke(tool_call_args);
+//       }else if (tool_call.name === "informacion_general_estadia_paciente") {
+//         const tool_call_args = tool_call.args as { input: string };
+//         console.log("tool_call_args: ", tool_call_args);
+//         return await retrieverToolInfoEstadiaPaciente.invoke(
+//           tool_call_args.input
+//         );
+//       }
+//     });
 
-  const toolCall = lastMessage.tool_calls[0];
-  console.log("llamada a la herramienta: ", toolCall);
+//     const resolvedToolCalls = (await Promise.all(toolsCalls)) as (
+//       | ToolMessage
+//       | ToolResponse
+//     )[];
 
-  // const tool_call_id = toolCall.id as string;
-  const tool_call_name = toolCall.name as string;
-  const tool_call_args = toolCall.args as InfoPaciente & {input: string} & {nombre_obra_social: string};
-  if (tool_call_name === "informacion_general_estadia_paciente") {
-    console.log(tool_call_args);
-    const input = tool_call_args.input as string;
-    const reponse = await retrieverToolInfoEstadiaPaciente.invoke(input);
-    return { messages: [reponse] };
-  } else if (tool_call_name === "informacion_normas_internacion_2019") {
-    console.log(tool_call_args);
-    const input = tool_call_args.input as string;
-    // const reponse = await retrieverToolNormasDeInternacion.invoke(input);
-    // return { messages: [reponse] };
-  }else if (tool_call_name === "obtener_informacion_paciente") {
-   const response =  await obtener_informacion_paciente.invoke(tool_call_args)
-   //  mostrar por consola los datos recopilados por el agente
-   const toolResponse = response.messages[0] as ToolMessage;
-   const infoPaciente = response.infoPaciente as InfoPaciente;
-   // LLamar a la funcion post_lead
-    const responseLoadLead = await load_lead({lead:infoPaciente});
-    if(responseLoadLead === "success"){
-      console.log("Lead cargado correctamente");
-      console.log(toolResponse);
-      console.log("toolResponse.content: " + toolResponse.content);
-      
-      
-    }
+//     const responsesTool = resolvedToolCalls.flatMap((toolCall) => {
+//       if (toolCall instanceof ToolMessage) {
+//         return [toolCall];
+//       } else if (Array.isArray(toolCall?.messages)) {
+//         return toolCall.messages;
+//       }
 
-   
+//       // Caso 3: Array de Documents (resultado de un retriever)
+//       if (
+//         Array.isArray(toolCall) &&
+//         toolCall.every((doc) => doc instanceof Document)
+//       ) {
+//         const fullText = toolCall.map((doc) => doc.pageContent).join("\n---\n");
+//         const toolCallId = messages.filter((msg: AIMessage) => {
+//           console.log("msg.tool_calls: ", msg.tool_calls);
 
-    return {info_paciente:infoPaciente,  messages: [toolResponse] };
-  }else if(tool_call_name === "verificar_obras_sociales") {
-    const response = await obras_sociales_tool.invoke(tool_call_args as {nombre_obra_social: string});
-    console.log("response: ", response);
-    return { messages: [ response] };
-  }
+//           return msg?.tool_calls?.filter(
+//             (call) => call.name === "informacion_general_estadia_paciente"
+//           );
+//         });
 
-   throw new Error("No se ha encontrado la herramienta");
-};
+//         console.log("toolCallId: ", toolCallId);
+
+//         const toolResponseAImessage = lastMessage as AIMessage;
+//         const toolCallIdMessage = toolResponseAImessage.tool_calls?.filter(
+//           (call) => {
+//             return call.name === "informacion_general_estadia_paciente";
+//           }
+//         );
+
+//         let id = "";
+//         if (toolCallIdMessage && toolCallIdMessage.length > 0) {
+//           console.log("toolCallIdMessage: ", toolCallIdMessage);
+//           id = toolCallIdMessage[0].id as string;
+//         }
+
+//         return [
+//           new ToolMessage({
+//             content: fullText,
+//             name: "informacion_general_estadia_paciente", // ajustá según la tool que lo genera
+//             tool_call_id: id, // o tomá el id real si lo tenés
+//           }),
+//         ];
+//       }
+
+//       // Fallback
+//       return [
+//         new ToolMessage({
+//           content: "Respuesta desconocida o en formato inesperado",
+//           name: "unknown",
+//           tool_call_id: "unknown",
+//         }),
+//       ];
+//     });
+
+//     return {
+//       messages: [...responsesTool],
+//     };
+//   }
+
+//   const toolCall = lastMessage.tool_calls[0];
+//   console.log("llamada a la herramienta: ", toolCall);
+
+//   // const tool_call_id = toolCall.id as string;
+//   const tool_call_name = toolCall.name as string;
+//   const tool_call_args = toolCall.args as InfoPaciente & { input: string } & {
+//     nombre_obra_social: string;
+//   };
+//   if (tool_call_name === "informacion_general_estadia_paciente") {
+//     console.log(tool_call_args);
+//     const input = tool_call_args.input as string;
+//     const reponse = await retrieverToolInfoEstadiaPaciente.invoke(input);
+//     return { messages: [reponse] };
+//   } else if (tool_call_name === "obtener_informacion_paciente") {
+//     const response = await obtener_informacion_paciente.invoke(tool_call_args);
+//     //  mostrar por consola los datos recopilados por el agente
+//     const toolResponse = response.messages[0] as ToolMessage;
+//     const infoPaciente = response.infoPaciente as InfoPaciente;
+//     // LLamar a la funcion post_lead
+//     const responseLoadLead = await load_lead({ lead: infoPaciente });
+//     if (responseLoadLead === "success") {
+//       console.log("Lead cargado correctamente");
+//       console.log(toolResponse);
+//       console.log("toolResponse.content: " + toolResponse.content);
+//     }
+
+//     return { info_paciente: infoPaciente, messages: [toolResponse] };
+//   } else if (tool_call_name === "verificar_obras_sociales") {
+//     const response = await obras_sociales_tool.invoke(
+//       tool_call_args as { nombre_obra_social: string }
+//     );
+//     console.log("response: ", response);
+//     return { messages: [response] };
+//   }
+
+//   throw new Error("No se ha encontrado la herramienta");
+// };
 
 const shouldContinue = async (state: typeof subgraphAnnotation.State) => {
   const { messages } = state;
@@ -571,7 +656,7 @@ const shouldContinue = async (state: typeof subgraphAnnotation.State) => {
 
   if (lastMessage?.tool_calls && lastMessage.tool_calls.length > 0) {
     console.log("shouldContinue tools: ");
-    
+
     return "tools";
   }
 
@@ -582,15 +667,19 @@ const graph = new StateGraph(subgraphAnnotation);
 
 graph
   .addNode("agent", callModel)
-  .addNode("tools", toolNodo)
+  .addNode("tools", toolNode)
   .addEdge(START, "agent")
   .addConditionalEdges("agent", shouldContinue)
-  .addEdge("tools", "agent")
+  .addEdge("tools", "agent");
 
 const checkpointer = new MemorySaver();
 
+// const workflow = graph.compile({ checkpointer });
+export const workflow = graph.compile({
+  checkpointer,
+});
+
 // Implementacion agente interfazp personalizada
-export const workflow = graph.compile({ checkpointer });
 
 // const response  = await workflow.invoke({question: "Hola, te escribo para averiguar por una internación"}, {configurable: {thread_id: "137"}});
 
@@ -610,4 +699,4 @@ export const workflow = graph.compile({ checkpointer });
 //   { configurable: { thread_id: "137" } }
 // );
 
-// console.log(response);
+// console.log(response)

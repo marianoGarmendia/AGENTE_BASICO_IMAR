@@ -1,4 +1,4 @@
-import { ZohoLead } from "../types/zoho_types";
+import {type ReponseContact} from "../types/type_contact";
 /** 
 *
 *
@@ -9,7 +9,7 @@ import { ZohoLead } from "../types/zoho_types";
 */
 
 export const load_contact = async ({ contact }: { contact: any }) => {
-  console.log("lead", contact);
+  console.log("contact", contact);
 
   const contactMockup =  {
     descripcion: 'Gestionar la internación de mi tío, Juan Gómez, con obra social OSPE.',
@@ -31,7 +31,7 @@ export const load_contact = async ({ contact }: { contact: any }) => {
   // TODO: Procesar correctamente las imagenes y los archivos para poder subirlos a la api de zoho, en un campo de la persona   
   const bodyZohoContact = {
     Full_name: contact.full_name,
-    Last_name: contact.full_name,
+    Last_name: contact.full_name ,
     Email: contact.email,
     Tipo_de_tratamiento: contact.tipo_de_tratamiento,
     Nombre_y_Apellido_paciente: contact.nombre_paciente, // Nombre del paciente, solo nombre
@@ -42,13 +42,21 @@ export const load_contact = async ({ contact }: { contact: any }) => {
     Obra_social1: contact.id_obra_social,
     Description: contact.descripcion || "",
     DNI: contact.dni || null,
-    
-    
   };
+
+
+  // Creamos un contacto en la API de Zoho
+  // Los campos obligatorios son:
+  /*
+  Tipo de contacto: Tipo_de_contacto
+  Apellidos: Last_name
+  Móvil: Mobile // Lo cargamos siempre aunque no sea obligatorio, para tener un contacto, lo tomamos del endpoint del Whatsapp
+
+  */ 
 
   try {
     const response = await fetch(
-      "https://fqfb9bqm-5000.brs.devtunnels.ms/leads/create",
+      "https://fqfb9bqm-5000.brs.devtunnels.ms/contacts/create",
       {
         method: "POST",
         headers: {
@@ -66,10 +74,10 @@ export const load_contact = async ({ contact }: { contact: any }) => {
       return { error: "Error en la respuesta de la API" };
     }
 
-    const data = await response.json();
+    const data:ReponseContact = await response.json();
     console.dir(data, { depth: null });
-    if (data.status === "success") {
-      return data.status;
+    if (data.data[0].status === "success") {
+      return data.data[0];
     }
     return null;
   } catch (error) {

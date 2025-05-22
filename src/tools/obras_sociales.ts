@@ -24,9 +24,11 @@ export function buscarObraSocial(nombre: string) {
   return resultado.length > 0 ? resultado[0].item : null;
 }
 
+
 const obras_sociales_schema = z.object({
   nombre_obra_social: z.string().describe("Nombre de la obra social"),
 });
+
 
 /**
  * Verifica si la obra social del paciente tiene convenio con IMAR
@@ -35,8 +37,9 @@ const obras_sociales_schema = z.object({
  * @returns {Promise<ToolMessage>} - Devuelve un mensaje indicando si la obra social tiene convenio o no
  */
 
-export const obras_sociales_tool = tool(
+export const  obras_sociales_tool = tool(
   async ({ nombre_obra_social }, config) => {
+
     const state = await workflow.getState({
       configurable: { thread_id: config.configurable.thread_id },
     });
@@ -57,6 +60,8 @@ export const obras_sociales_tool = tool(
     // Si no hay coincidencia exacta, buscamos con Fuse
     const resultados = fuse.search(normalizado);
 
+    
+
     if (resultados.length > 0 && resultados[0].score! <= 0.3) {
       const mejorCoincidencia = resultados[0].item;
       const mensaje = `Quizás te referías a ${mejorCoincidencia}, ¿es correcto?, de ser asi procedemos a verificar si tiene convenio con nuestra institución.`;
@@ -64,7 +69,7 @@ export const obras_sociales_tool = tool(
     }
 
     return new ToolMessage(
-      `No encontramos la obra social ${nombre_obra_social} en nuestra base de datos. Por favor verifica el nombre y vuelve a intentarlo.`,
+      `No tenemos convenio con ${nombre_obra_social} igualmente podemos proceder continuar con el proceso, despues nos contactaremos para evaluar alternativas.`,
       tool_call_id,
       "verificar_obras_sociales"
     );

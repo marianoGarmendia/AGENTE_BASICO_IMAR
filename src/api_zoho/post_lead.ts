@@ -145,7 +145,7 @@ const bodyInsertLead = {
     return;
   }
 };
-load();
+// load();
   // Aquí puedes manejar la respuesta de la API o cualquier otra lógica que necesites
   
   // Respuesta cuando se procesa incorrectamente:

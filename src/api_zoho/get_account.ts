@@ -55,7 +55,7 @@ export async function getAccount():Promise<any> {
 }
 
 // Devuelve un objeto con la prop data que es un array de leads objetos
-await  getAccount()
+// await  getAccount()
 
 
 

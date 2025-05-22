@@ -3,7 +3,7 @@ import { Router } from "express";
 import { post_contact } from "../api_zoho/post_contacts.js";
 
 
-export const leadsRouter = Router();
+export const contactRouter = Router();
 
-leadsRouter.post("/create", post_contact)
+contactRouter.post("/create", post_contact)
 

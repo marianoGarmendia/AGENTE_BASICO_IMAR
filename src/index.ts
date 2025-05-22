@@ -1,23 +1,26 @@
-import express, { type Request, type Response } from "express";
+import express from "express";
 import cors from "cors";
-import * as uuid from "uuid";
 import { parsePhoneNumber } from "./parser-phone-number";
 import { workflow } from "./graph";
 import { HumanMessage } from "@langchain/core/messages";
-import { sendMessage } from "./utils/sendMessageIG";
 import { sendMessageWsp } from "./send_msg_wsp";
 import { messageTemplateGeneric } from "./utils/wsp_templates";
 import {leadsRouter} from "./Routes/leads.route";
+import {contactRouter} from "./Routes/contact.route";
+import {tratoRouter} from "./Routes/trato.route";
 
 const VERIFY_TOKEN = process.env.VERIFY_TOKEN || "";
 const WEBHOOK_VERIFY_TOKEN = process.env.TOKEN_VERIFY_WEBHOOK_DEV || "";
 const app = express();
+const port = process.env.PORT || 5000;
+
 app.use(express.json());
 app.use(cors());
-const port = process.env.PORT || 5000;
 
 
 app.use("/leads", leadsRouter);
+app.use("/contacts", contactRouter);
+app.use("/tratos", tratoRouter);
 
 app.post("/mail", (req, res) => {
   console.log("Received mail request");
@@ -165,7 +168,7 @@ app.get("/webhook", (req, res) => {
 
 
 // ENPOINT PARA  QUE EL AGENTE ENVIE UN MENSAJE AL LEAD DE ZOHO QUE QUIERE RECUPERAR INFORMACION
-
+// EN DESARROLLO
 app.post("/zoho", async (req, res) => {
   console.log("Received zoho request");
   console.dir(req.body, { depth: null });

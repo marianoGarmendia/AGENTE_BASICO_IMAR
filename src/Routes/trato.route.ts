@@ -1,5 +1,7 @@
 import { Router } from "express";
 
-const tratoRouter = Router();
+export const tratoRouter = Router();
 
-// import { post_trato } from "../api_zoho/post_trato.js";
+import { post_trato } from "../api_zoho/post_trato.js";
+
+tratoRouter.post("/create", post_trato);

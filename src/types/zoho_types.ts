@@ -29,8 +29,21 @@ interface ZohoContact {
   [key: string]: any; // Permite propiedades adicionales
 }
 
+type TipoDeOportunidad = 'B2C Internación' | 'B2C Ambulatorios' | 'B2B';
+type NombreDelVendedor = 'Andrea Andrea Lischinsky' | (string & {});
+
+interface ZohoTrato {
+  Contact_name: string; // ID del contacto 
+  Deal_name: string; // Nombre del trato
+  Account_Name: string , // ID  de la obra social o de la empresa
+  Tipo_de_oportunidad: TipoDeOportunidad ,//["B2C Intenrnación", "B2C Ambulatorios", "B2B"], 
+  Nombre_del_Vendedor: NombreDelVendedor, // "Andrea Andrea Lischinsky"
+
+}
+
 
 export {
     ZohoLead
-    , ZohoContact
+    , ZohoContact,
+    ZohoTrato
 }

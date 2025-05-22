@@ -52,3 +52,5 @@ export const info_paciente_schema = z.object({
 });
 
 export type InfoPaciente = z.infer<typeof info_paciente_schema>;
+
+

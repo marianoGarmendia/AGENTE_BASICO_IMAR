@@ -1,6 +1,7 @@
 import dotenv from "dotenv";
 import type { Request, Response } from "express";
 import {  type ZohoContact } from "../types/zoho_types.js";
+import { type ReponseContact} from "../types/type_contact.js";
 dotenv.config();
 
 const ZOHO_ACCESS_TOKEN = process.env.ZOHO_ACCESS_TOKEN_SANDBOX || "";
@@ -29,7 +30,7 @@ export const post_contact = async (
         Apellido_paciente: contact.Apellido_paciente, // Apellido del paciente
         Tipo_de_posible_cliente: contact.Tipo_de_posible_cliente, //"FAMILIAR RESPONSABLE , CONTACTO INSTITUCIONAL , PACIENTE"
         Mobile: contact.Mobile,
-        Obra_social: contact.Obra_social,
+        Obra_social: contact.Obra_social || "4725123000001549012", // ID  de la obra social
         DNI: contact.DNI,
         Obra_social1: contact.Obra_social1,
         Description:
@@ -41,7 +42,7 @@ export const post_contact = async (
   let headers = {
     Authorization: `Zoho-oauthtoken ${ZOHO_ACCESS_TOKEN}`,
   };
-  console.log("cargando lead en route lead/create", bodyInsertContact);
+  console.log("cargando contacto en route contact/create", bodyInsertContact);
   
   try {
     const response = await fetch(url, {
@@ -60,6 +61,7 @@ export const post_contact = async (
     console.dir(data, { depth: null });
     if (data.status === "success") {
       console.log("Contacto procesado correctamente:", data);
+
       res.status(200).json(data);
       // res.status(200).json(data);}
     }
@@ -76,17 +78,17 @@ const bodyInsertContact = {
   data: [
     {
    
-      Email: "contactoObrasocialOsde@lead.com",
-      Last_Name: "Mariano osde", // Nombre de contacto
-      Tipo_de_tratamiento: "Tto ambulatorio",
+      Email: "contactoTest@test.com",
+      Last_Name: "Mariano test", // Nombre de contacto
+      Tipo_de_tratamiento: "Internación",
       Mobile: "2214371684",
       Tipo_de_posible_cliente: "Familiar Responsable", // cHEQUEAR SI ES ASI CUANDO ES MULTI-SELECT - "FAMILIAR RESPONSABLE , CONTACTO INSTITUCIONAL , PACIENTE"
-      Nombre_y_Apellido_paciente: "juan", // Es el nombre del paciente
-      Apellido_paciente: "Perez",
-      Obra_social: "4725123000081949863",
-      Obra_social1: "Osecac",
-      DNI: "25666888", // dni del contacto, puede llegar a ser el mismo paciene o el familiar responsable
-      Full_Name: "martes", // nombre completo del contacto, puede llegar a ser el mismo paciene o el familiar responsable
+      Nombre_y_Apellido_paciente: "jorge", // Es el nombre del paciente
+      Apellido_paciente: "Gomez",
+      Obra_social: "6635034000000586107",
+      Obra_social1: "Petroleros",
+      DNI: "256688", // dni del contacto, puede llegar a ser el mismo paciene o el familiar responsable
+      Full_Name: "Maria", // nombre completo del contacto, puede llegar a ser el mismo paciene o el familiar responsable
       Description:
         "Este es un contacto de prueba que estamos configruacion desde la api",
       
@@ -94,34 +96,35 @@ const bodyInsertContact = {
   ],
 };
 
+
+
 // En respuesta a esta carga:
 
 // {
-//   data: [
-//     {
-//       code: 'SUCCESS',
-//       duplicate_field: null,
-//       action: 'insert',
-//       details: {
-//         Modified_Time: '2025-05-19T16:20:57-03:00',
-//         Modified_By: { name: 'Andrea Lischinsky', id: '4725123000000350001' },
-//         Created_Time: '2025-05-19T16:20:57-03:00',
-//         id: '4725123000109577001',
-//         Created_By: { name: 'Andrea Lischinsky', id: '4725123000000350001' }
-//       },
-//       message: 'record added',
-//       status: 'success'
-//     }
-//   ]
-// }
-
+//     data: [
+//       {
+//         code: 'SUCCESS',
+//         duplicate_field: null,
+//         action: 'insert',
+//         details: {
+//           Modified_Time: '2025-05-21T13:03:08-03:00',
+//           Modified_By: { name: 'Andrea Lischinsky', id: '6635034000000560010' },
+//           Created_Time: '2025-05-21T13:03:08-03:00',
+//           id: '6635034000000707001', // ID del contacto creado con este id debo crear el trato *********
+//           Created_By: { name: 'Andrea Lischinsky', id: '6635034000000560010' }
+//         },
+//         message: 'record added',
+//         status: 'success'
+//       }
+//     ]
+//   }
 
   const load = async () => {
     
   let headers = {
     Authorization: `Zoho-oauthtoken ${ZOHO_ACCESS_TOKEN}`,
   };
-  console.log("cargando lead en route contact/create", bodyInsertContact);
+  console.log("cargando contact en route contact/create", bodyInsertContact);
   
   try {
     const response = await fetch(url, {
