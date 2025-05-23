@@ -1,9 +1,10 @@
 import { tool } from "@langchain/core/tools";
+import {Command} from "@langchain/langgraph";
 import { buscarIdObraSocialImar } from "../utils/get_id_obra_social";
 import { info_paciente_schema, InfoPaciente } from "../types/types_pacients";
 import { ToolMessage } from "@langchain/core/messages";
 import { workflow } from "../graph";
-import { info } from "node:console";
+
 
 export const obtener_informacion_paciente = tool(
   async (
@@ -29,7 +30,12 @@ export const obtener_informacion_paciente = tool(
     console.log("tool obtener_informacion_paciente");
 
     const { messages, mobile } = state.values;
-    const tool_call_id = messages.at(-1)?.tool_calls.at(-1)?.id;
+
+    const tool_call_id = messages
+      .at(-1)
+      ?.tool_calls.find(
+        (tool_call: any) => tool_call.name === "obtener_informacion_paciente"
+      )?.id;
 
     if (
       !email ||
@@ -78,22 +84,31 @@ export const obtener_informacion_paciente = tool(
       apellido_paciente,
     };
 
-    // Agregar el id de la obra social a la info del paciente
-    await workflow.updateState(config, {
-      id_obra_social: id || "4725123000001549012", //
-      info_paciente: infoPaciente,
-      isReadyToLoad: true,
-    });
+  
 
     const message = `Hemos obtenido la siguiente informacón del paciente:
     ${JSON.stringify(infoPaciente, null, 2)}
     Por favor, revisa que la información sea correcta. Si es así, por favor sube los documentos solicitados para continuar con el proceso de internación.
    `;
-    return new ToolMessage(
-      message,
-      tool_call_id,
-      "obtener_informacion_paciente"
-    );
+
+    return new Command({
+    // update state keys
+    update: {
+      info_paciente: infoPaciente,
+      id_obra_social: id || "4725123000001549012", //
+      isReadyToLoad: true,
+      messages: [
+        new ToolMessage(message, tool_call_id, "obtener_informacion_paciente"),
+      ],
+    },
+  });
+
+
+    // return new ToolMessage(
+    //   message,
+    //   tool_call_id,
+    //   "obtener_informacion_paciente"
+    // );
   },
   {
     name: "obtener_informacion_paciente",

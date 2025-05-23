@@ -30,10 +30,10 @@ export const load_contact = async ({ contact }: { contact: any }) => {
 
   // TODO: Procesar correctamente las imagenes y los archivos para poder subirlos a la api de zoho, en un campo de la persona   
   const bodyZohoContact = {
-    Full_name: contact.full_name,
-    Last_name: contact.full_name ,
-    Email: contact.email,
-    Tipo_de_tratamiento: contact.tipo_de_tratamiento,
+    Full_name: contact.full_name || "sin nombre",
+    Last_name: contact.full_name  || "sin nombre",
+    Email: contact.email || "sin email",
+    Tipo_de_tratamiento: contact.tipo_de_tratamiento || "INTERNACION",
     Nombre_y_Apellido_paciente: contact.nombre_paciente, // Nombre del paciente, solo nombre
     Apellido_paciente: contact.apellido_paciente, // Apellido del paciente
     Tipo_de_posible_cliente: contact.tipo_de_posible_cliente, //"FAMILIAR RESPONSABLE , CONTACTO INSTITUCIONAL , PACIENTE"
@@ -63,7 +63,7 @@ export const load_contact = async ({ contact }: { contact: any }) => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          lead: bodyZohoContact,
+          contact: bodyZohoContact,
         }),
       }
     );

@@ -31,7 +31,7 @@ export const load_trato = async ({ contact }: { contact: InfoPacienteTrato }) =>
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          lead: contact,
+          contact: contact,
         }),
       }
     );

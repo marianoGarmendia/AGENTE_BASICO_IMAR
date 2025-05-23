@@ -1,5 +1,6 @@
 import dotenv from "dotenv";
 import type { Request, Response } from "express";
+import {getValidAccessToken} from "./tokenManager.js";
 import {  ZohoTrato } from "../types/zoho_types.js";
 dotenv.config();
 
@@ -17,7 +18,9 @@ export const post_trato = async (
   req: Request<unknown, unknown, { contact: ZohoTrato }>,
   res: Response
 ) => {
-  const { contact } = req.body; // Asegúrate de que el cuerpo de la solicitud contenga un objeto "lead"
+  const { contact } = req.body; // Asegúrate de que el cuerpo de la solicitud contenga un objeto "contact"
+    const token = await getValidAccessToken();
+
 
   const bodyInsertTrato = {
     data: [
@@ -32,7 +35,7 @@ export const post_trato = async (
   };
 
   let headers = {
-    Authorization: `Zoho-oauthtoken ${ZOHO_ACCESS_TOKEN}`,
+    Authorization: `Zoho-oauthtoken ${token}`,
   };
   console.log("cargando trato en route trato/create", bodyInsertTrato);
   
@@ -77,12 +80,25 @@ const bodyInsertTrato = {
   ],
 };
 
-const load = async () => {
-    
+export const loadTrato = async ({contact}:{contact:any}) => {
+      const token = await getValidAccessToken();
+
   let headers = {
-    Authorization: `Zoho-oauthtoken ${ZOHO_ACCESS_TOKEN}`,
+    Authorization: `Zoho-oauthtoken ${token}`,
   };
-  console.log("cargando trato en route trato/create", bodyInsertTrato);
+  console.log("cargando trato en loadTrato: ", contact);
+
+   const bodyInsertTrato = {
+    data: [
+      {
+        Contact_Name: contact.Contact_name, // Nombre de contacto - Probamos con el ID del contacto
+        Deal_Name: contact.Deal_name, // Nombre del trato <  string> // Que ponen? ANDREA
+        Account_Name: contact.Account_Name , // ID  de la obra social o de la empresa
+        Tipo_de_oportunidad: contact.Tipo_de_oportunidad,//["B2C Intenrnación", "B2C Ambulatorios", "B2B"], 
+        Nombre_del_Vendedor: contact.Nombre_del_Vendedor, // Nombre del vendedor
+      }
+    ],
+  };
   
   try {
     const response = await fetch(url, {
@@ -99,9 +115,9 @@ const load = async () => {
 
     const data = await response.json();
     console.dir(data, { depth: null });
-    if (data.status === "success") {
+    if (data.data[0].status === "success") {
       console.log("Trato procesado correctamente:", data);
-     
+     return data.data[0]
       // res.status(200).json(data);}
     }
   } catch (error) {

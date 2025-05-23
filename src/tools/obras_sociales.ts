@@ -14,6 +14,7 @@ export function tieneConvenio(nombre: string): boolean {
 }
 
 // Utilizamos la clase Fuse para realizar la búsqueda difusa
+// TENDRIA QUE PASARLE TODAS LAS OBRAS SOCIALES QUE TIENEN CONVENIO
 const fuse = new Fuse(obras_sociales_con_convenio, {
   includeScore: true, // DeVUELVE ITEM Y SCORE
   threshold: 0.3, // tolerancia que tan lejos o cerca permite la busqueda, 0 es exacto, 1 es malisimo
@@ -24,11 +25,9 @@ export function buscarObraSocial(nombre: string) {
   return resultado.length > 0 ? resultado[0].item : null;
 }
 
-
 const obras_sociales_schema = z.object({
   nombre_obra_social: z.string().describe("Nombre de la obra social"),
 });
-
 
 /**
  * Verifica si la obra social del paciente tiene convenio con IMAR
@@ -37,15 +36,20 @@ const obras_sociales_schema = z.object({
  * @returns {Promise<ToolMessage>} - Devuelve un mensaje indicando si la obra social tiene convenio o no
  */
 
-export const  obras_sociales_tool = tool(
+export const obras_sociales_tool = tool(
   async ({ nombre_obra_social }, config) => {
-
     const state = await workflow.getState({
       configurable: { thread_id: config.configurable.thread_id },
     });
 
-    const tool_call_id =
-      state.values.messages[state.values.messages.length - 1].tool_calls[0].id;
+    // const tool_call_id =
+    //   state.values.messages[state.values.messages.length - 1].tool_calls[0].id;
+
+    const tool_call_id = state.values.messages
+      .at(-1)
+      ?.tool_calls.find(
+        (tool_call: any) => tool_call.name === "verificar_obras_sociales"
+      )?.id;
 
     const normalizado = nombre_obra_social.trim().toLowerCase();
 
@@ -59,11 +63,11 @@ export const  obras_sociales_tool = tool(
 
     // Si no hay coincidencia exacta, buscamos con Fuse
     const resultados = fuse.search(normalizado);
-
-    
+    console.log("resultados del fuse: ", resultados);
 
     if (resultados.length > 0 && resultados[0].score! <= 0.3) {
       const mejorCoincidencia = resultados[0].item;
+
       const mensaje = `Quizás te referías a ${mejorCoincidencia}, ¿es correcto?, de ser asi procedemos a verificar si tiene convenio con nuestra institución.`;
       return new ToolMessage(mensaje, tool_call_id, "verificar_obras_sociales");
     }

@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import { getValidAccessToken, initializeTokenSession } from "./api_zoho/tokenManager";
 import { parsePhoneNumber } from "./parser-phone-number";
 import { workflow } from "./graph";
 import { HumanMessage } from "@langchain/core/messages";
@@ -8,6 +9,13 @@ import { messageTemplateGeneric } from "./utils/wsp_templates";
 import {leadsRouter} from "./Routes/leads.route";
 import {contactRouter} from "./Routes/contact.route";
 import {tratoRouter} from "./Routes/trato.route";
+import dotenv from "dotenv";
+dotenv.config();
+
+const REFRESH_TOKEN = process.env.ZOHO_REFRESH_TOKEN || "";
+const ACCESS_TOKEN = process.env.ZOHO_ACCESS_TOKEN || "";
+
+initializeTokenSession( { accessToken: ACCESS_TOKEN, refreshToken: REFRESH_TOKEN})
 
 const VERIFY_TOKEN = process.env.VERIFY_TOKEN || "";
 const WEBHOOK_VERIFY_TOKEN = process.env.TOKEN_VERIFY_WEBHOOK_DEV || "";

@@ -71,12 +71,12 @@ export function buscarIdObraSocial(nombreObraSocial: string): ObraSocialMap {
   };
 }
 
-const response = await cargarObrasSociales();
+// const response = await cargarObrasSociales();
 
-if (response) {
-  const found = buscarIdObraSocial("la de petroleros");
-  console.log("found", found);
-}
+// if (response) {
+//   const found = buscarIdObraSocial("la de petroleros");
+//   console.log("found", found);
+// }
 /**
  *
  * Busca el ID de una obra social por su nombre.

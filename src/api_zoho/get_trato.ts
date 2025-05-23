@@ -1,5 +1,6 @@
 import dotenv from "dotenv";
 import path from "path";
+import {getValidAccessToken} from "./tokenManager";
 import { fileURLToPath } from 'node:url'
 import { dirname } from 'node:path'
 import fs from "fs";
@@ -8,14 +9,16 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 
-const ACCESS_TOKEN = process.env.ZOHO_ACCESS_TOKEN_SANDBOX || "";
+
 
 export async function getTrato():Promise<any> {
+    const token = await getValidAccessToken();
+
     try {
         const response = await  fetch('https://www.zohoapis.com/crm/v2/Deals',{
          method: 'GET',
          headers: {
-           Authorization: `Zoho-oauthtoken ${ACCESS_TOKEN}`,
+           Authorization: `Zoho-oauthtoken ${token}`,
            'Content-Type': 'application/json',
         }})
      

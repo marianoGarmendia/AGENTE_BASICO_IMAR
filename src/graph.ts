@@ -36,15 +36,17 @@ import { load_contact } from "./tools/load_contact";
 import { retrieverToolInfoEstadiaPaciente } from "./tools/instructivos_internacion";
 import { obtener_informacion_paciente } from "./tools/obtener_info_paciente";
 import { obras_sociales_tool } from "./tools/obras_sociales";
-import { toolsMap } from "./utils/find-tool-call";
-import * as constants from "./utils/constants";
-import { RunnableLambda, Runnable } from "@langchain/core/runnables";
+import {obras_sociales_con_convenio} from "./utils/obras-sociales";
+
+import {loadContact} from "./api_zoho/post_contacts";
+import { loadTrato } from "./api_zoho/post_trato";
 
 // import { load_lead } from "./tools/load_lead";
 import dotenv from "dotenv";
 import { load_lead } from "./tools/load_lead";
 import { load_trato } from "./tools/load_trato";
 import { tool } from "@langchain/core/tools";
+import ts from "typescript";
 // import { obras_sociales } from "./utils/obras-sociales";
 // import { especialidades_dias_profesionales } from "./utils/especialidades";
 
@@ -81,6 +83,7 @@ const tools = [
   retrieverToolInfoEstadiaPaciente,
 ];
 
+
 const model = new ChatOpenAI({
   temperature: 0,
   model: "gpt-4o",
@@ -108,11 +111,19 @@ const toolNode = new ToolNode(tools);
 
 // const toolNode = new ToolNode(tools);
 
-async function callModel(state: typeof subgraphAnnotation.State) {
+async function callModel(state: typeof subgraphAnnotation.State, config: LangGraphRunnableConfig) {
   const { messages, info_paciente, mobile, isLoad_trato, isReadyToLoad } =
     state;
   const conversation = formatMessages(messages);
   // BassemessageField parameters, which are passed to the model
+const stateGet = await workflow.getState({
+  configurable: { thread_id: config?.configurable?.thread_id },
+})
+
+console.log("stateGet isReadyToLoad ", stateGet.values.isReadyToLoad);
+console.log("stateGet info paciente:  ", stateGet.values.info_paciente);
+
+
 
   console.log("Listo para cargar a zoho CRM: ", isReadyToLoad);
   console.log("Estado de carga en el CRM: ", info_paciente);
@@ -268,6 +279,9 @@ async function callModel(state: typeof subgraphAnnotation.State) {
 
       “No hay hidro por esta semana. ¿Querés mantener el resto de las sesiones?”
 
+      ### LISTADO DE OBRAS SOCIALES CON CONVENIO:
+      - ${JSON.stringify(obras_sociales_con_convenio)}
+
     ### HERRAMIENTAS PARA UTILIZAR:
 
     ## HERRAMIENTA:
@@ -412,13 +426,17 @@ async function callModel(state: typeof subgraphAnnotation.State) {
 
       SI YA ESTÁ CARGADO EL PACIENTE EN EL CRM DEBES DECIRLE AL USUSARIO QUE YA ESTÁ EN PROCESO LA GESTIÓN Y QUE EN BREVE SE COMUNICARAN DE MANERA PERSONALIZADA PARA AVANZAR CON EL PROCESO DE INTERNACIÓN.
 
-      ESTADO DE CARGA EN EL CRM DE IMAR: ${isLoad_trato}
-
+      
       ------------------------
 
       CONVERSACION HASTA EL MOMENTO:
       
       - ${conversation}
+      A este momento el estado de carga en sistema es: ${isLoad_trato ? "CARGADO" : "NO CARGADO"}
+      ------------------------
+
+      Si el estado de carga es "CARGADO" ya no debes hacer la carga de nuevo ni utilizar la herramienta de "obtener_informacion_paciente", ya que el paciente ya está cargado en el CRM de IMAR y no es necesario volver a cargarlo. Si el estado de carga es "NO CARGADO" debes utilizar la herramienta de "obtener_informacion_paciente" para cargar al paciente en el CRM de IMAR y continuar con el proceso de internación.
+
    
 
     `
@@ -428,11 +446,48 @@ async function callModel(state: typeof subgraphAnnotation.State) {
   const response = await model.invoke([systemsMessage, ...messages]);
 
   // We return a list, because this will get added to the existing list
-  console.log("NODO AGENTE: ");
-  console.log(messages);
+  
+  
 
   return { messages: [response] };
 }
+
+
+const loadNode = async (state: typeof subgraphAnnotation.State) => {
+  const {isReadyToLoad, isLoad_trato} = state;
+
+  if(isReadyToLoad && !isLoad_trato){
+    const { info_paciente , id_obra_social} = state;
+    
+    const responseContact = await loadContact({ contact:  info_paciente });
+    console.log("responseContact: ", responseContact);
+ 
+    if (responseContact && responseContact.status === "success") {
+      console.log("contacto cargado correctamente");
+   
+        console.log("responseContact: ", responseContact);
+
+        if(responseContact && "status" in responseContact){
+        if (responseContact.status == "success") {
+          console.log("Contact cargado correctamente");
+
+          const nombreContactoId = responseContact.details.id
+          const bodyTrato:InfoPacienteTrato = {
+            Contact_name: nombreContactoId,
+            Deal_name: info_paciente.obra_social ,
+            Account_Name: id_obra_social,
+            Tipo_de_oportunidad: "B2C Internación",
+            Nombre_del_Vendedor: "Andrea Lischinsky",
+          }
+
+         const responseTrato = await loadTrato({contact: bodyTrato})
+          const isLoadTrato = responseTrato !== null
+          return { isLoadTrato: isLoadTrato };
+      
+    }
+  }}}}
+
+
 
 // "tool_calls": [
 //   {
@@ -660,6 +715,8 @@ const shouldContinue = async (state: typeof subgraphAnnotation.State) => {
     return "tools";
   }
 
+
+
   return "__end__";
 };
 
@@ -668,9 +725,12 @@ const graph = new StateGraph(subgraphAnnotation);
 graph
   .addNode("agent", callModel)
   .addNode("tools", toolNode)
+  .addNode("load_contact", loadNode)
   .addEdge(START, "agent")
   .addConditionalEdges("agent", shouldContinue)
-  .addEdge("tools", "agent");
+  .addEdge("tools", "load_contact")
+  .addEdge("load_contact", "agent")
+
 
 const checkpointer = new MemorySaver();
 
