@@ -13,6 +13,7 @@
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",
+    "@types/d3": "^7.4.3",
     "@types/express": "^5.0.0",
     "npm-force-resolutions": "^0.0.10"
   },
@@ -20,6 +21,7 @@
     "typescript": "^5.0.0"
   },
   "dependencies": {
+    "@langchain/anthropic": "^0.3.21",
     "@langchain/community": "",
     "@langchain/core": "",
     "@langchain/langgraph": "",
@@ -27,8 +29,10 @@
     "@langchain/openai": "0.2.8",
     "@langchain/tavily": "^0.1.1",
     "@zohocrm/nodejs-sdk-2.0": "^6.1.0",
+    "canvas": "^3.1.0",
     "cors": "2.8.5",
     "csv-parse": "^5.6.0",
+    "d3": "^7.9.0",
     "dotenv": "^16.5.0",
     "exceljs": "^4.4.0",
     "express": "^4.21.2",
@@ -37,6 +41,7 @@
     "node-fetch": "^3.3.2",
     "pdf-parse": "^1.1.1",
     "resend": "4.1.2",
+    "tslab": "^1.0.22",
     "uuid": "10.0.0",
     "zcrmsdk": "^1.1.0"
   }
