@@ -162,7 +162,7 @@ const formattedPrompt = await prompt.partial({
   members: members.join(", "),
 });
 
-const llm = new ChatAnthropic({
+export const llm = new ChatAnthropic({
   modelName: "claude-3-5-sonnet-20241022",
   apiKey: process.env.ANTHROPIC_API_KEY ?? "",
   temperature: 0,

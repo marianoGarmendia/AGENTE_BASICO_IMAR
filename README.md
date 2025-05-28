@@ -50,3 +50,42 @@ WHATSAPP
 - https://www.360dialog.com/es/whatsapp-business-api
 
   TODO: Debo agregar un nodo final para cuando recopila información es decir llama al modulo obtener_info_ y vuelve, pasar por un nodo que lo que hace es cargar como contacto, como trato y decirle al usuario que ya esta en sistema y se van a contactar para continuar de manera personalziada el tramite.
+
+  ---
+
+  FLUJO DE CONVERSACION
+
+  Entrada usuario (WhatsApp)
+  │
+  ▼
+  ┌────────────────────────────┐
+  │        SUPERVISOR          │  ← Determina tipo de consulta inicial
+  │ (con modelo Claude o GPT) │
+  └────────────┬──────────────┘
+  │
+  ├─▶ INTERNACIÓN ─────────────▶ [ Agente de internación ]
+  │                                 (mantiene conversación)
+  │
+  ├─▶ AMBULATORIO ─────────────▶ [ Agente de ambulatorio ]
+  │                                 (mantiene conversación)
+  │
+  ├─▶ CONSULTORIOS ────────────▶ [ Agente de consultorios ]
+  │                                 (mantiene conversación)
+  │
+  └─▶ FIN ─────────────────────▶ [ Fin del flujo ]
+
+
+
+  [START]
+     ↓
+  [supervisorAgent] —─┐
+     ↓                │
+  [shouldRoute]       │ ←─── NO
+     ↓                │
+  [routingToolNode] ──┘ ←─── YES
+     ↓
+  [END o AGENTE destino]
+
+
+
+  SUBGRAPH : [Documentacion importante de respaldo ](https://langchain-ai.github.io/langgraphjs/how-tos/subgraph/#add-a-node-with-the-compiled-subgraph)

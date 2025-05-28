@@ -5,7 +5,8 @@
         "."
     ],
     "graphs": {
-        "agent": "./src/graph.ts:workflow"
+        "agent": "./src/graph.ts:workflow",
+        "supervisor": "./src/test/main.ts:compiledGraph"
     },
     "env": "./.env"
 }

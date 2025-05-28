@@ -2,36 +2,28 @@ import {
   AIMessage,
   SystemMessage,
   ToolMessage,
-  type BaseMessageLike,
+  
 } from "@langchain/core/messages";
-import { ChatPromptTemplate } from "@langchain/core/prompts";
-import { Document } from "langchain/document";
 import { InfoPacienteTrato } from "./types/type_trato";
-import { z } from "zod";
-import { llm } from "./llm/llm";
+
 import { ChatOpenAI } from "@langchain/openai";
-import { TavilySearch } from "@langchain/tavily";
+;
 import { formatMessages } from "./utils/format-messages";
 import {
   START,
   StateGraph,
-  interrupt,
-  Command,
   LangGraphRunnableConfig,
-  addMessages,
 } from "@langchain/langgraph";
 import {
   MemorySaver,
   Annotation,
   MessagesAnnotation,
 } from "@langchain/langgraph";
-import { OpenAI } from "@langchain/openai";
-import { StringOutputParser } from "@langchain/core/output_parsers";
+
 
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { InfoPaciente } from "./types/types_pacients";
-import { getInfoEspcialistSchedule } from "./tools/info_espcialist_schedule";
-import { load_contact } from "./tools/load_contact";
+
 
 import { retrieverToolInfoEstadiaPaciente } from "./tools/instructivos_internacion";
 import { obtener_informacion_paciente } from "./tools/obtener_info_paciente";
@@ -43,12 +35,7 @@ import { loadTrato } from "./api_zoho/post_trato";
 
 // import { load_lead } from "./tools/load_lead";
 import dotenv from "dotenv";
-import { load_lead } from "./tools/load_lead";
-import { load_trato } from "./tools/load_trato";
-import { tool } from "@langchain/core/tools";
-import ts from "typescript";
-// import { obras_sociales } from "./utils/obras-sociales";
-// import { especialidades_dias_profesionales } from "./utils/especialidades";
+
 
 dotenv.config();
 
@@ -63,36 +50,26 @@ const OPENAI_API_KEY_IMAR = process.env.OPENAI_API_KEY_IMAR || "";
 // process.env.LANGCHAIN_CALLBACKS_BACKGROUND = "true";
 // import * as dotenv from "dotenv";
 // dotenv.config();
-const tavilySearch = new TavilySearch({
-  tavilyApiKey: process.env.TAVILY_API_KEY,
-  includeDomains: [
-    "http://www.institutoimar.com.ar/",
-    "http://www.institutoimar.com.ar/especialidades/listado-especialidades",
-    "http://www.institutoimar.com.ar/ambulatorio/sesiones",
-    "http://www.institutoimar.com.ar/internacion/hospital-internacion",
-    "http://www.institutoimar.com.ar/institucional/bienvenidos",
-  ],
-  maxResults: 5,
-  searchDepth: "advanced",
-});
+
 
 // TODO:  Agregar la herramienta de consulta sobre obras sociales con las cuales trabaja IMAR
-const tools = [
+export const tools = [
   obtener_informacion_paciente,
   obras_sociales_tool,
   retrieverToolInfoEstadiaPaciente,
 ];
 
 
-const model = new ChatOpenAI({
+export const model = new ChatOpenAI({
   temperature: 0,
   model: "gpt-4o",
   apiKey: OPENAI_API_KEY_IMAR,
-}).bindTools(tools);
+  
+})
 
 const stateAnnotation = MessagesAnnotation;
 
-const subgraphAnnotation = Annotation.Root({
+export const subgraphAnnotation = Annotation.Root({
   ...stateAnnotation.spec,
   info_paciente: Annotation<InfoPaciente>,
   id_obra_social: Annotation<string>,
@@ -104,12 +81,7 @@ const subgraphAnnotation = Annotation.Root({
 });
 
 const toolNode = new ToolNode(tools);
-// Manera de inicializar el estado de la conversación
-// is_new_patient: Annotation<Boolean>({reducer: (a, b) => b ,default: () => true}),
 
-// const model = llm.bindTools(tools);
-
-// const toolNode = new ToolNode(tools);
 
 async function callModel(state: typeof subgraphAnnotation.State, config: LangGraphRunnableConfig) {
   const { messages, info_paciente, mobile, isLoad_trato, isReadyToLoad } =
@@ -120,13 +92,16 @@ const stateGet = await workflow.getState({
   configurable: { thread_id: config?.configurable?.thread_id },
 })
 
-console.log("stateGet isReadyToLoad ", stateGet.values.isReadyToLoad);
-console.log("stateGet info paciente:  ", stateGet.values.info_paciente);
+// console.log("stateGet isReadyToLoad ", stateGet.values.isReadyToLoad);
+// console.log("stateGet info paciente:  ", stateGet.values.info_paciente);
 
 
+console.log("Agente de internaciones IMAR:  currentAgent", stateGet.values.currentAgent);
+console.log("state: " + stateGet.values);
 
-  console.log("Listo para cargar a zoho CRM: ", isReadyToLoad);
-  console.log("Estado de carga en el CRM: ", info_paciente);
+
+//   console.log("Listo para cargar a zoho CRM: ", isReadyToLoad);
+//   console.log("Estado de carga en el CRM: ", info_paciente);
 
   const systemsMessage = new SystemMessage(
     `
@@ -734,29 +709,10 @@ graph
 
 const checkpointer = new MemorySaver();
 
-// const workflow = graph.compile({ checkpointer });
+
 export const workflow = graph.compile({
   checkpointer,
 });
 
-// Implementacion agente interfazp personalizada
+export const internacionWorkflow = workflow
 
-// const response  = await workflow.invoke({question: "Hola, te escribo para averiguar por una internación"}, {configurable: {thread_id: "137"}});
-
-// Implementacion langgraph studio sin checkpointer
-// export const workflow = graph.compile();
-
-// MODIFICAR EL TEMA DE HORARIOS
-// En el calendar de cal esta configurado el horario de bs.as.
-// El agente detecta 3hs mas tarde de lo que es en realidad es.
-// Ejemplo: si el agente detecta 16hs, en realidad es 13hs.
-// Para solucionar este problema, se debe modificar el horario de la herramienta "create_booking_tool".
-// En la herramienta "create_booking_tool" se debe modificar el horario de la variable "start".
-// En la variable "start" se debe modificar la hora de la reserva.
-
-// const response = await workflow.invoke(
-//   { messages: "Hola, quiero consultar por un candidato de id 478" },
-//   { configurable: { thread_id: "137" } }
-// );
-
-// console.log(response)

@@ -29,15 +29,16 @@ import { createCanvas } from "canvas";
 import { z } from "zod";
 import * as tslab from "tslab";
 
-const specialistMedic = new DynamicStructuredTool({
-    name: "coronograma_de_medicos",
-    description:"Da informacion sobre los medicos especialistas y sus horarios de atencion",
+export const ambulatorioInfo = new DynamicStructuredTool({
+    name: "información_sobre_tratamientos_ambulatorios",
+    description:"Da informacion sobre los tratamientos ambulatorios disponibles en IMAR",
     schema: z.object({
-        location: z.string().describe("Ubicación para obtener el clima actual"),
+        tratamiento: z.string().describe("El tratamiento ambulatorio sobre el que se solicita información"),
     }),
-func: async ({ location }) => {
-    return `El clima actual en ${location} es soleado con una temperatura de 25°C.`;
-}})
+func: async ({ tratamiento }) => {
+    return `El tratamiento ambulatorio ${tratamiento} está disponible en IMAR. Para más información, por favor visita nuestro sitio web o contacta a nuestro equipo de atención al cliente.`;
+    
+}}) 
 
 const tavilyTool = new TavilySearchResults({
     apiKey: process.env.TAVILY_API_KEY ?? "",
