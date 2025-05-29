@@ -65,7 +65,7 @@ export const model = new ChatOpenAI({
   model: "gpt-4o",
   apiKey: OPENAI_API_KEY_IMAR,
   
-})
+}).bindTools(tools)
 
 const stateAnnotation = MessagesAnnotation;
 

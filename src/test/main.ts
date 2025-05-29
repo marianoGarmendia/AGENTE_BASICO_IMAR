@@ -5,7 +5,7 @@ import { MemorySaver, Annotation, MessagesAnnotation } from "@langchain/langgrap
 import { BaseMessage, HumanMessage } from "@langchain/core/messages";
 import { supervisorNode, AGENTS } from "./supervisorAgent";
 import {supervisorAgent} from "./supervisor"; // Tu agente supervisor
-import { shouldRoute } from "./shouldRoute"; // Función para decidir el agente
+import { routeDecision } from "./shouldRoute"; // Función para decidir el agente
 import { internacionWorkflow } from "../graph"; // Tu agente actual
 // import { ambulatorioWorkflow } from "./ambulatorio";
 // import { consultoriosWorkflow } from "./consultorios";
@@ -14,12 +14,16 @@ import { internacionWorkflow } from "../graph"; // Tu agente actual
 // 1. Definir el estado
 /////////////////////////
 
-const stateAnnotation = Annotation.Root({
+export const stateAnnotation = Annotation.Root({
   ...MessagesAnnotation.spec,
   next: Annotation<typeof AGENTS[number]>({
     reducer: (x, y) => y ?? x ?? "__end__",
     default: () => "__end__",
-  })
+  }),
+  currentAgent: Annotation<string>({
+    reducer: (_, y) => y,
+    default: () => "supervisor",
+  }),
     
 });
 
@@ -27,24 +31,42 @@ const stateAnnotation = Annotation.Root({
 // 2. Crear el grafo maestro
 /////////////////////////
 
+const dispatcher = async (state: typeof stateAnnotation.State) => {
+    console.log("Dispatcher state:", state.currentAgent);
+    return {next: state.currentAgent};
+}
+
 const graph = new StateGraph(stateAnnotation);
 
 graph
   .addNode("supervisor", supervisorAgent)
   .addNode("internacion", internacionWorkflow)
+  .addNode("routeDecision", routeDecision)
   .addNode("ambulatorio", async () => {
       return { messages: [new HumanMessage("⚠️ Agente ambulatorio aún no implementado")] };
     })
   .addNode("consultorios", async () => {
     return { messages: [new HumanMessage("⚠️ Agente consultorios aún no implementado")] };
   })
-  .addEdge(START, "supervisor")
-  .addConditionalEdges("supervisor", shouldRoute, [
+   .addNode("dispatcher", dispatcher)
+  .addEdge(START, "dispatcher")
+  .addConditionalEdges("dispatcher", (state) => state.currentAgent, [
+   "supervisor",
     "internacion",
-   "ambulatorio",
+    "ambulatorio",
     "consultorios",
     "__end__",
   ])
+  .addEdge("supervisor", "routeDecision")
+  .addConditionalEdges("routeDecision", (state) => state.next, [
+    
+    "internacion",
+    "ambulatorio",
+    "consultorios",
+    "__end__",
+  ])
+ 
+
 
   // Redirección según el agente que elija el supervisor
 //   .addConditionalEdges("supervisor", (state) => state.next, {

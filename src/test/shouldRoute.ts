@@ -2,7 +2,10 @@ import { ChatAnthropic } from "@langchain/anthropic";
 import { z } from "zod";
 import { DynamicStructuredTool } from "@langchain/core/tools";
 import { ChatPromptTemplate, MessagesPlaceholder } from "@langchain/core/prompts";
+import {stateAnnotation} from "./main"; // Importa el estado del grafo principal
+import {Command} from "@langchain/langgraph";
 import { AGENTS } from "./supervisorAgent";
+
 
 const routingTool = new DynamicStructuredTool({
   name: "route",
@@ -17,7 +20,7 @@ const promptTemplate = ChatPromptTemplate.fromMessages([
   ["system", `
   Dada la siguiente conversación, decidí si hay información suficiente para asignar al área correspondiente:
   {options}
-  Si aún no está claro, respondé con END.
+  Si aún no está claro, respondé con "__end__".
   `],
   new MessagesPlaceholder("messages"),
   ["human", "¿Quién debe atender esta consulta?"],
@@ -42,10 +45,20 @@ const deciderChain = prompt.pipe(model).pipe((output: any) => {
 
 
 
-export const shouldRoute = async (state: { messages: any[] }) => {
+export const routeDecision = async (state: typeof stateAnnotation.State) => {
   const result = await deciderChain.invoke({
     messages: state.messages,
   });
+   
 
-  return result?.next === "END" ? "supervisor" : result.next;
-};
+  const nextAgent = result?.next ?? "__end__"
+
+  console.log("Next agent decided:", nextAgent);
+  
+
+  return {
+    next: nextAgent,
+    currentAgent: nextAgent,
+  }
+
+}

@@ -9,6 +9,7 @@ import { DynamicStructuredTool } from "@langchain/core/tools";
 
 // Opciones de agentes disponibles
 export const AGENTS = [
+  
   "internacion",
   "ambulatorio",
   "consultorios",
