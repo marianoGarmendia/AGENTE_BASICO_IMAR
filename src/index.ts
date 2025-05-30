@@ -8,6 +8,7 @@ import { sendMessageWsp } from "./send_msg_wsp";
 import { messageTemplateGeneric } from "./utils/wsp_templates";
 import {leadsRouter} from "./Routes/leads.route";
 import {contactRouter} from "./Routes/contact.route";
+import { conversationRouter } from "./Routes/builderbot.route";
 import {tratoRouter} from "./Routes/trato.route";
 import dotenv from "dotenv";
 dotenv.config();
@@ -26,6 +27,7 @@ app.use(express.json());
 app.use(cors());
 
 
+app.use(conversationRouter);
 app.use("/leads", leadsRouter);
 app.use("/contacts", contactRouter);
 app.use("/tratos", tratoRouter);

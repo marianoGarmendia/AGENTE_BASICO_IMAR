@@ -14,6 +14,7 @@ export const obtener_informacion_paciente = tool(
       dni,
       foto_carnet,
       foto_dni,
+      tipo_de_tratamiento,
       obra_social,
       historia_clinica,
       email,
@@ -70,7 +71,7 @@ export const obtener_informacion_paciente = tool(
     const infoPaciente = {
       descripcion,
       telefono: mobile,
-      tipo_de_tratamiento: "INTERNACION",
+      tipo_de_tratamiento,
       tipo_de_posible_cliente,
       dni,
       foto_carnet,

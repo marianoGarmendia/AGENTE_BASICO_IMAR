@@ -20,6 +20,7 @@ export const post_trato = async (
 ) => {
   const { contact } = req.body; // Asegúrate de que el cuerpo de la solicitud contenga un objeto "contact"
     const token = await getValidAccessToken();
+    // const token = ""
 
 
   const bodyInsertTrato = {

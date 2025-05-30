@@ -33,7 +33,7 @@ export const load_contact = async ({ contact }: { contact: any }) => {
     Full_name: contact.full_name || "sin nombre",
     Last_name: contact.full_name  || "sin nombre",
     Email: contact.email || "sin email",
-    Tipo_de_tratamiento: contact.tipo_de_tratamiento || "INTERNACION",
+    Tipo_de_tratamiento: contact.tipo_de_tratamiento || "SIN DEFINIR",
     Nombre_y_Apellido_paciente: contact.nombre_paciente, // Nombre del paciente, solo nombre
     Apellido_paciente: contact.apellido_paciente, // Apellido del paciente
     Tipo_de_posible_cliente: contact.tipo_de_posible_cliente, //"FAMILIAR RESPONSABLE , CONTACTO INSTITUCIONAL , PACIENTE"

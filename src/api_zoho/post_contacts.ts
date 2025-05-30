@@ -27,7 +27,7 @@ export const post_contact = async (
       {
         Full_name: contact.full_name,
         Email: contact.email,
-        Tipo_de_tratamiento: contact.tipo_de_tratamiento || "INTERNACION",
+        Tipo_de_tratamiento: contact.tipo_de_tratamiento || "SIN DEFINIR",
         Nombre_y_Apellido_paciente: contact.nombre_paciente || "Sin definir", // Nombre del paciente, solo nombre
         Apellido_paciente: contact.apellido_paciente || "Sin definir", // Apellido del paciente
         Tipo_de_posible_cliente: contact.tipo_de_posible_cliente || "SIN DEFINIR", //"FAMILIAR RESPONSABLE , CONTACTO INSTITUCIONAL , PACIENTE"
@@ -113,29 +113,29 @@ interface ContactoInsert {
   Description?: string;
 }
 
-interface BodyInsertContact {
-  data: ContactoInsert[];
-}
+// interface BodyInsertContact {
+//   data: ContactoInsert[];
+// }
 
 
-const responseData = {
-  data: [
-    {
-      code: 'SUCCESS',
-      duplicate_field: null,
-      action: 'insert',
-      details: {
-        Modified_Time: '2025-05-23T12:28:38-03:00',
-        Modified_By: { name: 'Andrea Lischinsky', id: '4725123000000350001' },
-        Created_Time: '2025-05-23T12:28:38-03:00',
-        id: '4725123000109743001',
-        Created_By: { name: 'Andrea Lischinsky', id: '4725123000000350001' }
-      },
-      message: 'record added',
-      status: 'success'
-    }
-  ]
-}
+// const responseData = {
+//   data: [
+//     {
+//       code: 'SUCCESS',
+//       duplicate_field: null,
+//       action: 'insert',
+//       details: {
+//         Modified_Time: '2025-05-23T12:28:38-03:00',
+//         Modified_By: { name: 'Andrea Lischinsky', id: '4725123000000350001' },
+//         Created_Time: '2025-05-23T12:28:38-03:00',
+//         id: '4725123000109743001',
+//         Created_By: { name: 'Andrea Lischinsky', id: '4725123000000350001' }
+//       },
+//       message: 'record added',
+//       status: 'success'
+//     }
+//   ]
+// }
 
 
 
@@ -164,6 +164,7 @@ const responseData = {
   export const loadContact = async ({contact}:{contact:any}) => {
 
       const token = await getValidAccessToken();
+      // const token = ""
 
     
   let headers = {
@@ -176,7 +177,7 @@ const responseData = {
     
     Last_Name: contact.full_name  || "sin definir",
     Email: contact.email || "sin definir",
-    Tipo_de_tratamiento: contact.tipo_de_tratamiento || "INTERNACION",
+    Tipo_de_tratamiento: contact.tipo_de_tratamiento || "SIN DEFINIR",
     Nombre_paciente: contact.nombre_paciente || "Sin definir", // Nombre del paciente, solo nombre
     Apellido_paciente: contact.apellido_paciente || "sin definir", // Apellido del paciente
     Tipo_de_posible_cliente: contact.tipo_de_posible_cliente || "sin definir", //"FAMILIAR RESPONSABLE , CONTACTO INSTITUCIONAL , PACIENTE"
@@ -224,6 +225,25 @@ const responseData = {
    
   }
 };
+
+const bodyZohoContact = {
+    Full_Name:"sin definir", // nombre completo del contacto, puede llegar a ser el mismo paciene o el familiar responsable
+    Last_Name:"sin definir",
+    Email:"correo@gmail.com",
+    Tipo_de_tratamiento:  "SIN DEFINIR",
+    Nombre_paciente: "Sin definir", // Nombre del paciente, solo nombre
+    Apellido_paciente:  "sin definir", // Apellido del paciente
+    Tipo_de_posible_cliente:  "sin definir", //"FAMILIAR RESPONSABLE , CONTACTO INSTITUCIONAL , PACIENTE"
+    Mobile: "555-5555", // Teléfono móvil del contacto
+    Obra_social: "4725123000001201142" , // id correspondiente - aca poner el id de la obra social "sin definir" para casos donde algo falla en la recopilación del id de la obra social
+    Obra_social1:  "sin definir", // Obra social del contacto
+    Description: "sin descriptión",
+    DNI:  "123456789", // dni del contacto, puede llegar a ser el mismo paciene o el familiar responsable
+  };
+
+
+
+await loadContact({ contact: bodyZohoContact })
 // load();
   // Aquí puedes manejar la respuesta de la API o cualquier otra lógica que necesites
   

@@ -4,6 +4,7 @@ export const info_paciente_schema = z.object({
   nombre_paciente: z.string().describe("Nombre del paciente"),
   apellido_paciente: z.string().describe("Apellido del paciente"),
   tipo_de_posible_cliente: z.enum(["Familiar responsable", "Contacto institucional", "Paciente"]).describe("Tipo de posible cliente puede ser [Paciente, Familiar responsable, Contacto institucional]"),
+  tipo_de_tratamiento: z.enum(["Internación", "Tto. ambulatorio", "Consultorio Externo"]).describe("Tipo de tratamiento puede ser [Internación, Tto. ambulatorio, Consultorio Externo]"),
   full_name: z
     .string()
     .describe(

@@ -3,7 +3,7 @@
   "module": "index.ts",
   "type": "module",
   "scripts": {
-    "start": "",
+    "start": "npx tsx src/index.ts",
     "dev": "npx tsx src/index.ts",
     "preinstall": "npx npm-force-resolutions",
     "auth": "npx tsx src/auth_zoho.ts",
